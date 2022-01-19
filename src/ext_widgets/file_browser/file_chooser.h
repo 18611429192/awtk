@@ -226,6 +226,10 @@ ret_t file_chooser_destroy(file_chooser_t* chooser);
 #define FILE_CHOOSER_OK "ok"
 #define FILE_CHOOSER_CANCEL "cancel"
 
+ret_t double_click(timer_info_t* timer);
+static widget_t* gm_win;
+static file_chooser_t* gm_chooser;
+
 END_C_DECLS
 
 #endif /*TK_FILE_CHOOSER_H*/

@@ -23,6 +23,7 @@
 #include "tkc/utils.h"
 #include "file_browser_view.h"
 #include "base/date_time_format.h"
+#include "file_browser.h"
 
 #define SORT_BY_NAME "name"
 #define SORT_BY_TYPE "type"
@@ -226,11 +227,14 @@ static ret_t file_browser_view_reload_in_idle(const idle_info_t* info) {
   return RET_REMOVE;
 }
 
+extern ret_t double_click(timer_info_t* timer);
+
 static ret_t file_browser_view_on_item_clicked(void* ctx, event_t* e) {
   value_change_event_t changed;
   widget_t* target = WIDGET(e->target);
   file_browser_view_t* file_browser_view = FILE_BROWSER_VIEW(ctx);
   return_value_if_fail(target != NULL && file_browser_view != NULL, RET_BAD_PARAMS);
+  uint32_t old_time, new_time;
 
   if (tk_str_eq(target->name, FILE_BROWSER_VIEW_RETURN_UP)) {
     file_browser_up(file_browser_view->fb);
@@ -244,6 +248,14 @@ static ret_t file_browser_view_on_item_clicked(void* ctx, event_t* e) {
     widget_add_idle(WIDGET(file_browser_view), file_browser_view_reload_in_idle);
   } else {
     uint32_t index = widget_index_of(target);
+    //获取上次点击的时间，如果没有，就是第一次点击，添加一个时间进去，如果有计算两次的时间差值，小于100ms就认为是一次双击，更新时间，调用file_choose_on_ok
+    old_time = widget_get_prop_int(target, "click_time", 0);
+    date_time_t dt;
+    date_time_init(&dt);
+    new_time = date_time_to_time(&dt);
+    //保存现在的时间到属性中，用来判断。
+    widget_set_prop_int(target, "click_time", new_time);
+
     fb_item_t* info = file_browser_get_item(file_browser_view->fb, index - 1);
     return_value_if_fail(info != NULL, RET_FAIL);
 
@@ -257,6 +269,13 @@ static ret_t file_browser_view_on_item_clicked(void* ctx, event_t* e) {
   widget_dispatch(WIDGET(ctx), (event_t*)&changed);
 
   log_debug("cwd: %s\n", value_str(&(changed.new_value)));
+
+  if (old_time != 0) {
+    uint32_t diff_time = new_time - old_time;
+    if (diff_time < 1 || diff_time == 0) {
+      timer_add(double_click, NULL, 10);
+    }
+  }
 
   return RET_OK;
 }

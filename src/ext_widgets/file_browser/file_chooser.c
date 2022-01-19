@@ -108,9 +108,36 @@ static ret_t file_choose_on_ok(void* ctx, event_t* e) {
   return RET_OK;
 }
 
+ret_t double_click(timer_info_t* timer) {
+  done_event_t done;
+  widget_t* widget = widget_lookup_by_type(gm_win, WIDGET_TYPE_FILE_BROWSER_VIEW, TRUE);
+  widget_t* selected_file = widget_lookup(widget, FILE_BROWSER_VIEW_SELECTED_FILE, TRUE);
+
+  str_set(&(gm_chooser->cwd), file_browser_view_get_cwd(widget));
+  if (selected_file != NULL) {
+    str_from_wstr(&(gm_chooser->filename), selected_file->text.str);
+  }
+
+  gm_chooser->aborted = FALSE;
+  if (emitter_dispatch(EMITTER(gm_chooser), done_event_init(&done, RET_OK)) == RET_OK) {
+    if (widget_is_dialog(gm_win)) {
+      dialog_quit(gm_win, DIALOG_QUIT_OK);
+    } else {
+      widget_close_window(gm_win);
+    }
+    file_chooser_destroy(gm_chooser);
+  }
+  gm_chooser = NULL;
+  gm_win = NULL;
+
+  return RET_OK;
+}
+
 ret_t file_chooser_choose(file_chooser_t* chooser) {
   widget_t* win = window_open(chooser->ui);
   widget_t* file_browser_view = widget_lookup_by_type(win, WIDGET_TYPE_FILE_BROWSER_VIEW, TRUE);
+  gm_win = win;
+  gm_chooser = chooser;
 
   widget_child_on(win, FILE_CHOOSER_OK, EVT_CLICK, file_choose_on_ok, chooser);
   widget_child_on(win, FILE_CHOOSER_CANCEL, EVT_CLICK, file_choose_on_click_to_close, chooser);
