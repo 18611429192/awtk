@@ -7,31 +7,6 @@ from awtk_config_common import OS_NAME, TARGET_ARCH, TOOLS_PREFIX, TK_SRC, TK_BI
 from awtk_config_common import joinPath, toWholeArchive, genIdlAndDefEx, setEnvSpawn, genDllLinkFlags, copySharedLib
 from awtk_config_common import OS_FLAGS, OS_LIBS, OS_LIBPATH, OS_CPPPATH, OS_LINKFLAGS, OS_SUBSYSTEM_CONSOLE, OS_SUBSYSTEM_WINDOWS, OS_PROJECTS, COMMON_CFLAGS
 
-
-TOOLS_PREFIX = ''
-OS_NAME = platform.system()
-MACH = platform.machine()
-ARCH = platform.architecture()
-is32bit = (ARCH[0] == '32bit')
-
-if is32bit:
-    if MACH == 'i686' or MACH == 'i386' or MACH == 'x86':
-        TARGET_ARCH = 'x86'
-    else:
-        TARGET_ARCH = 'arm'
-else:
-    TARGET_ARCH = ''
-
-print('MACH=' + MACH + ' ARCH=' + str(ARCH) + ' TARGET_ARCH=' + TARGET_ARCH)
-
-
-def joinPath(root, subdir):
-    return os.path.normpath(os.path.join(root, subdir))
-
-
-TK_ROOT = os.path.dirname(os.path.normpath(os.path.abspath(__file__)))
-
-
 WIN32_AWTK_RES = 'win32_res/awtk.res'
 if not os.path.exists(WIN32_AWTK_RES):
     WIN32_AWTK_RES = os.path.join(TK_ROOT, 'win32_res/awtk.res')
@@ -39,7 +14,6 @@ if not os.path.exists(WIN32_AWTK_RES):
 AWTK_STATIC_LIBS = ['awtk_global', 'extwidgets',
                     'widgets', 'base', 'gpinyin', 'fribidi', 'linebreak']
 AWTK_STATIC_LIBS = AWTK_STATIC_LIBS+TKC_STATIC_LIBS
-
 
 # INPUT_ENGINE='null'
 # INPUT_ENGINE='spinyin'
@@ -191,49 +165,14 @@ else:
         COMMON_CCFLAGS = COMMON_CCFLAGS + \
             ' -DWITH_NANOVG_GL3 -DWITH_NANOVG_GL -DWITH_NANOVG_GPU  '
 
-
-OS_FLAGS = ''
-OS_LIBS = []
-OS_LIBPATH = []
-OS_CPPPATH = []
-OS_LINKFLAGS = ''
-OS_SUBSYSTEM_CONSOLE = ''
-OS_SUBSYSTEM_WINDOWS = ''
-
-
 OS_PROJECTS = []
 OS_WHOLE_ARCHIVE = toWholeArchive(AWTK_STATIC_LIBS)
 AWTK_DLL_DEPS_LIBS = AWTK_STATIC_LIBS + \
     NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
 
-
 if OS_NAME == 'Darwin':
     OS_WHOLE_ARCHIVE = ' -all_load '
 elif OS_NAME == 'Linux':
-
-    TOOLS_NAME = ''
-    OS_FLAGS = '-g -Wall -Wno-unused-function -fPIC '
-    OS_LIBS = ['GL', 'gtk-3', 'gdk-3', 'Xext', 'X11',
-               'sndio', 'stdc++', 'asound', 'pthread', 'm', 'dl']
-    COMMON_CFLAGS = COMMON_CFLAGS+' -std=gnu99 '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + ' -DLINUX -DHAS_PTHREAD'
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -DSDL_REAL_API -DSDL_TIMER_UNIX -DSDL_VIDEO_DRIVER_X11 -DSDL_VIDEO_DRIVER_X11_SUPPORTS_GENERIC_EVENTS '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -DSDL_AUDIO_DRIVER_SNDIO -DSDL_VIDEO_OPENGL_GLX -DSDL_VIDEO_RENDER_OGL '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -DSDL_LOADSO_DLOPEN -DSDL_VIDEO_OPENGL_EGL -DSDL_VIDEO_OPENGL_ES2 '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -DSDL_REAL_API -DSDL_HAPTIC_DISABLED -DSDL_SENSOR_DISABLED -DSDL_JOYSTICK_DISABLED '
-    OS_PROJECTS = ['3rd/SDL/SConscript']
-    if TARGET_ARCH == 'x86':
-        OS_FLAGS = OS_FLAGS + ' -U__FLT_EVAL_METHOD__ -D__FLT_EVAL_METHOD__=0 '
-    else:
-        OS_FLAGS = OS_FLAGS + ' -DWITH_64BIT_CPU '
-
-    OS_LINKFLAGS = ' -Wl,-rpath=./bin -Wl,-rpath=./ '
-    AWTK_DLL_DEPS_LIBS = NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
-    OS_WHOLE_ARCHIVE = ' -Wl,--whole-archive -lawtk_global -lextwidgets -lwidgets -lbase -lgpinyin -lstreams -lconf_io -lhal -lcsv -lubjson -lcompressors -lfribidi -lmbedtls -lminiz -ltkc_static -llinebreak -Wl,--no-whole-archive'
     OS_PROJECTS = ['3rd/SDL/SConscript']
 elif OS_NAME == 'Windows':
     OS_PROJECTS = ['3rd/SDL/SConscript']
@@ -247,7 +186,8 @@ elif OS_NAME == 'Windows':
 
 CFLAGS = COMMON_CFLAGS
 LINKFLAGS = OS_LINKFLAGS
-LIBPATH = [TK_LIB_DIR, TK_BIN_DIR] + OS_LIBPATH
+LIBPATH = [TK_LIB_DIR, TK_BIN_DIR] + OS_LIBPATH + \
+    ['lib/', 'lib/mosquitto', 'lib/pthread']
 CCFLAGS = OS_FLAGS + COMMON_CCFLAGS + '-D__LINUX_PAL__ -DWITH_TLS'
 AWTK_CCFLAGS = OS_FLAGS + COMMON_CCFLAGS + ' -DWITH_WIDGET_TYPE_CHECK=1 '
 
@@ -280,8 +220,7 @@ CPPPATH = [TK_ROOT,
            joinPath(TK_3RD_ROOT, 'libunibreak'),
            joinPath(TK_3RD_ROOT, 'gtest/googletest'),
            joinPath(TK_3RD_ROOT, 'gtest/googletest/include'),
-           TK_TOOLS_ROOT] + OS_CPPPATH + NANOVG_BACKEND_CPPPATH + ['lib/mosquitto/include', 'lib/pthread/include']
-
+           TK_TOOLS_ROOT] + OS_CPPPATH + NANOVG_BACKEND_CPPPATH
 
 os.environ['LCD'] = LCD
 os.environ['TK_ROOT'] = TK_ROOT
@@ -301,7 +240,6 @@ os.environ['STATIC_LIBS'] = ';'.join(STATIC_LIBS)
 
 os.environ['WITH_AWTK_SO'] = 'true'
 os.environ['AWTK_CCFLAGS'] = AWTK_CCFLAGS
-
 os.environ['CROSS_COMPILE'] = str(not TOOLS_PREFIX == '')
 
 os.environ['SDL_UBUNTU_USE_IME'] = str(False)
