@@ -161,25 +161,71 @@ TEST(DateTime, delta) {
 }
 
 TEST(DateTime, object) {
-  object_t* obj = object_date_time_create();
+  tk_object_t* obj = object_date_time_create();
 
-  ASSERT_EQ(object_set_prop_int(obj, "year", 2020), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "year", 0), 2020);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "year", 2020), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "year", 0), 2020);
 
-  ASSERT_EQ(object_set_prop_int(obj, "month", 1), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "month", 0), 1);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "month", 1), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "month", 0), 1);
 
-  ASSERT_EQ(object_set_prop_int(obj, "day", 1), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "day", 0), 1);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "day", 1), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "day", 0), 1);
 
-  ASSERT_EQ(object_set_prop_int(obj, "hour", 2), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "hour", 0), 2);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "hour", 2), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "hour", 0), 2);
 
-  ASSERT_EQ(object_set_prop_int(obj, "minute", 3), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "minute", 0), 3);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "minute", 3), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "minute", 0), 3);
 
-  ASSERT_EQ(object_set_prop_int(obj, "second", 4), RET_OK);
-  ASSERT_EQ(object_get_prop_int(obj, "second", 0), 4);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "second", 4), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "second", 0), 4);
 
-  OBJECT_UNREF(obj);
+  TK_OBJECT_UNREF(obj);
+}
+
+#include "tkc/fscript.h"
+#include "tkc/object_default.h"
+
+TEST(DateTime, fscript_object) {
+  value_t v1;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(
+      obj,
+      "a=date_time_create();date_time_set_prop(a,\"year\",2050);b=date_time_get_prop(a,\"year\");b",
+      &v1);
+  ASSERT_EQ(value_int(&v1), 2050);
+
+  fscript_eval(
+      obj,
+      "a=date_time_create();date_time_set_prop(a,\"month\",10);b=date_time_get_prop(a,\"month\");b",
+      &v1);
+  ASSERT_EQ(value_int(&v1), 10);
+
+  fscript_eval(
+      obj,
+      "a=date_time_create();date_time_set_prop(a,\"day\",11);b=date_time_get_prop(a,\"day\");b",
+      &v1);
+  ASSERT_EQ(value_int(&v1), 11);
+
+  fscript_eval(
+      obj,
+      "a=date_time_create();date_time_set_prop(a,\"hour\",8);b=date_time_get_prop(a,\"hour\");b",
+      &v1);
+  ASSERT_EQ(value_int(&v1), 8);
+
+  fscript_eval(obj,
+               "a=date_time_create();date_time_set_prop(a,\"minute\",9);b=date_time_get_prop(a,"
+               "\"minute\");b",
+               &v1);
+  ASSERT_EQ(value_int(&v1), 9);
+
+  fscript_eval(obj,
+               "a=date_time_create();date_time_set_prop(a,\"second\",5);b=date_time_get_prop(a,"
+               "\"second\");b",
+               &v1);
+  ASSERT_EQ(value_int(&v1), 5);
+
+  TK_OBJECT_UNREF(obj);
 }

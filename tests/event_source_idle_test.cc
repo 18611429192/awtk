@@ -1,5 +1,4 @@
 ﻿#include "gtest/gtest.h"
-#include "base/idle.h"
 #include "tkc/event_source_idle.h"
 
 static uint32_t s_idle_times = 0;
@@ -25,6 +24,6 @@ TEST(EventSourceIdle, basic) {
   ASSERT_EQ(event_source_dispatch(event_source), RET_OK);
   ASSERT_EQ(s_idle_times, 1u);
 
-  object_unref(OBJECT(event_source));
+  tk_object_unref(TK_OBJECT(event_source));
   idle_manager_destroy(tm);
 }

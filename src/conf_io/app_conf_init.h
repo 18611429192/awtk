@@ -27,7 +27,7 @@
 
 BEGIN_C_DECLS
 
-typedef object_t* (*conf_load_t)(const char* url, bool_t create_if_not_exist);
+typedef tk_object_t* (*conf_load_t)(const char* url, bool_t create_if_not_exist);
 
 /**
  * @method app_conf_init
@@ -36,7 +36,7 @@ typedef object_t* (*conf_load_t)(const char* url, bool_t create_if_not_exist);
  *
  * @annotation ["global"]
  * 
- * @param {conf_loader_t} load 配置加载函数。
+ * @param {conf_load_t} load 配置加载函数。
  * @param {const char*} app_name 应用程序名称。
  * @param {const char*} extname 文件扩展名。
  * 

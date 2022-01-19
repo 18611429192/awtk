@@ -201,7 +201,17 @@ static ret_t conf_json_parse_number(json_parser_t* parser) {
 
   conf_json_skip_to_value_end(parser);
   str_set_with_len(s, parser->data + start, parser->cursor - start);
-  value_set_double(&v, tk_atof(s->str));
+
+  if (strchr(s->str, '.') == NULL && strchr(s->str, 'E') == NULL) {
+    int64_t n = tk_atol(s->str);
+    if (n < INT_MAX && n > INT_MIN) {
+      value_set_int32(&v, n);
+    } else {
+      value_set_int64(&v, n);
+    }
+  } else {
+    value_set_double(&v, tk_atof(s->str));
+  }
 
   return conf_node_set_value(parser->current, &v);
 }
@@ -478,12 +488,12 @@ error:
   return RET_FAIL;
 }
 
-object_t* conf_json_load(const char* url, bool_t create_if_not_exist) {
+tk_object_t* conf_json_load(const char* url, bool_t create_if_not_exist) {
   return conf_obj_create(conf_doc_save_json_writer, conf_doc_load_json_reader, url,
                          create_if_not_exist);
 }
 
-ret_t conf_json_save_as(object_t* obj, const char* url) {
+ret_t conf_json_save_as(tk_object_t* obj, const char* url) {
   data_writer_t* writer = NULL;
   conf_doc_t* doc = conf_obj_get_doc(obj);
   return_value_if_fail(doc != NULL && url != NULL, RET_BAD_PARAMS);
@@ -496,6 +506,6 @@ ret_t conf_json_save_as(object_t* obj, const char* url) {
   return RET_OK;
 }
 
-object_t* conf_json_create(void) {
+tk_object_t* conf_json_create(void) {
   return conf_json_load(NULL, TRUE);
 }

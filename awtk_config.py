@@ -3,6 +3,10 @@ import os.path
 import platform
 import shutil
 from shutil import copyfile
+from awtk_config_common import OS_NAME, TARGET_ARCH, TOOLS_PREFIX, TK_SRC, TK_BIN_DIR, TK_LIB_DIR, TK_3RD_ROOT, TK_TOOLS_ROOT, TK_DEMO_ROOT, GTEST_ROOT, TKC_STATIC_LIBS, TOOLS_NAME, NANOVG_BACKEND, NATIVE_WINDOW, TK_ROOT
+from awtk_config_common import joinPath, toWholeArchive, genIdlAndDefEx, setEnvSpawn, genDllLinkFlags, copySharedLib
+from awtk_config_common import OS_FLAGS, OS_LIBS, OS_LIBPATH, OS_CPPPATH, OS_LINKFLAGS, OS_SUBSYSTEM_CONSOLE, OS_SUBSYSTEM_WINDOWS, OS_PROJECTS, COMMON_CFLAGS
+
 
 TOOLS_PREFIX = ''
 OS_NAME = platform.system()
@@ -27,22 +31,15 @@ def joinPath(root, subdir):
 
 TK_ROOT = os.path.dirname(os.path.normpath(os.path.abspath(__file__)))
 
+
 WIN32_AWTK_RES = 'win32_res/awtk.res'
 if not os.path.exists(WIN32_AWTK_RES):
     WIN32_AWTK_RES = os.path.join(TK_ROOT, 'win32_res/awtk.res')
 
-print('TK_ROOT: ' + TK_ROOT)
-print('WIN32_AWTK_RES: ' + WIN32_AWTK_RES)
+AWTK_STATIC_LIBS = ['awtk_global', 'extwidgets',
+                    'widgets', 'base', 'gpinyin', 'fribidi', 'linebreak']
+AWTK_STATIC_LIBS = AWTK_STATIC_LIBS+TKC_STATIC_LIBS
 
-TK_SRC = joinPath(TK_ROOT, 'src')
-TK_BIN_DIR = joinPath(TK_ROOT, 'bin')
-TK_LIB_DIR = joinPath(TK_ROOT, 'lib')
-TK_3RD_ROOT = joinPath(TK_ROOT, '3rd')
-TK_TOOLS_ROOT = joinPath(TK_ROOT, 'tools')
-TK_DEMO_ROOT = joinPath(TK_ROOT, 'demos')
-GTEST_ROOT = joinPath(TK_ROOT, '3rd/gtest/googletest')
-AWTK_STATIC_LIBS = ['awtk_global', 'extwidgets', 'widgets', 'base', 'gpinyin', 'streams', 'conf_io', 'hal',
-                    'csv', 'ubjson', 'compressors', 'fribidi', 'mbedtls', 'miniz', 'tkc_static', 'linebreak', 'mbedtls']
 
 # INPUT_ENGINE='null'
 # INPUT_ENGINE='spinyin'
@@ -194,6 +191,7 @@ else:
         COMMON_CCFLAGS = COMMON_CCFLAGS + \
             ' -DWITH_NANOVG_GL3 -DWITH_NANOVG_GL -DWITH_NANOVG_GPU  '
 
+
 OS_FLAGS = ''
 OS_LIBS = []
 OS_LIBPATH = []
@@ -201,23 +199,18 @@ OS_CPPPATH = []
 OS_LINKFLAGS = ''
 OS_SUBSYSTEM_CONSOLE = ''
 OS_SUBSYSTEM_WINDOWS = ''
-OS_PROJECTS = []
-OS_WHOLE_ARCHIVE = ''
-if OS_NAME == 'Darwin':
-    TOOLS_NAME = ''
-    OS_FLAGS = '-g -Wall -Wno-unused-function -fPIC -DWITHOUT_GLAD=1 '
-    OS_LIBS = ['stdc++', 'iconv', 'pthread', 'm', 'dl']
-    OS_LINKFLAGS = '-framework IOKit -framework Cocoa -framework QuartzCore -framework OpenGL -weak_framework Metal -weak_framework MetalKit'
-    COMMON_CCFLAGS = COMMON_CCFLAGS + ' -DHAS_SEM_OPEN '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + ' -D__APPLE__ -DHAS_PTHREAD -DMACOS '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS  -DBGFX_CONFIG_RENDERER_METAL=1 '
-    AWTK_DLL_DEPS_LIBS = AWTK_STATIC_LIBS + \
-        NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
-    OS_WHOLE_ARCHIVE = ' -all_load '
-    OS_LIBPATH = ['/usr/local/lib/']
 
+
+OS_PROJECTS = []
+OS_WHOLE_ARCHIVE = toWholeArchive(AWTK_STATIC_LIBS)
+AWTK_DLL_DEPS_LIBS = AWTK_STATIC_LIBS + \
+    NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
+
+
+if OS_NAME == 'Darwin':
+    OS_WHOLE_ARCHIVE = ' -all_load '
 elif OS_NAME == 'Linux':
+
     TOOLS_NAME = ''
     OS_FLAGS = '-g -Wall -Wno-unused-function -fPIC '
     OS_LIBS = ['GL', 'gtk-3', 'gdk-3', 'Xext', 'X11',
@@ -241,62 +234,26 @@ elif OS_NAME == 'Linux':
     OS_LINKFLAGS = ' -Wl,-rpath=./bin -Wl,-rpath=./ '
     AWTK_DLL_DEPS_LIBS = NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
     OS_WHOLE_ARCHIVE = ' -Wl,--whole-archive -lawtk_global -lextwidgets -lwidgets -lbase -lgpinyin -lstreams -lconf_io -lhal -lcsv -lubjson -lcompressors -lfribidi -lmbedtls -lminiz -ltkc_static -llinebreak -Wl,--no-whole-archive'
-
-elif OS_NAME == 'Windows':
-    if not os.path.exists(os.path.abspath(TK_BIN_DIR)):
-        os.makedirs(os.path.abspath(TK_BIN_DIR))
-    if not os.path.exists(os.path.abspath(TK_LIB_DIR)):
-        os.makedirs(os.path.abspath(TK_LIB_DIR))
-    if TOOLS_NAME == '':  # 修改#添加了'mosquitto','pthreadVC2'和-D_DEBUG -D_CONSOLE -D__LINUX_PAL__ -DWITH_THREADING -DWITH_TLS
-        OS_LIBS = ['gdi32', 'user32', 'winmm.lib', 'imm32.lib', 'version.lib', 'shell32.lib', 'ole32.lib',
-                   'Oleaut32.lib', 'Advapi32.lib', 'DelayImp.lib', 'psapi.lib', 'mosquitto', 'pthreadVC2']
-        OS_FLAGS = '-D__LINUX_PAL__ -DWITH_TLS -DWIN32 -D_WIN32 -DWINDOWS /EHsc -D_CONSOLE  /DEBUG /Od  /FS /Z7 /utf-8 /MD '
-        if TARGET_ARCH == 'x86':
-            OS_LINKFLAGS = '/MACHINE:X86 /DEBUG \"' + WIN32_AWTK_RES + '\" '
-            OS_SUBSYSTEM_CONSOLE = '/SUBSYSTEM:CONSOLE,5.01  '
-            OS_SUBSYSTEM_WINDOWS = '/SUBSYSTEM:WINDOWS,5.01  '
-            COMMON_CCFLAGS = COMMON_CCFLAGS + ' -D_WIN32 '
-        else:
-            OS_FLAGS = OS_FLAGS + ' -DWITH_64BIT_CPU '
-            OS_LINKFLAGS = '/MACHINE:X64 /DEBUG \"' + WIN32_AWTK_RES + '\" '
-            OS_SUBSYSTEM_CONSOLE = '/SUBSYSTEM:CONSOLE  '
-            OS_SUBSYSTEM_WINDOWS = '/SUBSYSTEM:WINDOWS  '
-            COMMON_CCFLAGS = COMMON_CCFLAGS + ' -D_WIN64 '
-        COMMON_CCFLAGS = COMMON_CCFLAGS + ' -DHAVE_LIBC '
-        OS_WHOLE_ARCHIVE = ' /DEF:"dllexports/awtk.def" '
-        AWTK_DLL_DEPS_LIBS = AWTK_STATIC_LIBS + \
-            NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
-
-    elif TOOLS_NAME == 'mingw':  # 修改#添加了'mosquitto','pthreadVC2'和-D_DEBUG -D_CONSOLE -D__LINUX_PAL__ -DWITH_THREADING -DWITH_TLS
-        OS_LIBS = ['kernel32', 'gdi32', 'user32', 'winmm', 'imm32', 'version', 'shell32',
-                   'ole32', 'Oleaut32', 'Advapi32', 'oleaut32', 'uuid', 'stdc++', "ws2_32", 'mosquitto', 'pthreadVC2']
-        OS_FLAGS = '-D__LINUX_PAL__ -DWITH_TLS -DWIN32 -D_WIN32 -DMINGW -DWINDOWS -D_CONSOLE -g -Wall'
-        OS_LINKFLAGS = ' -Wl,-rpath=./bin -Wl,-rpath=./ '
-        COMMON_CFLAGS = COMMON_CFLAGS+' -std=gnu99 '
-        COMMON_CCFLAGS = COMMON_CCFLAGS + \
-            ' -U__FLT_EVAL_METHOD__ -D__FLT_EVAL_METHOD__=0 -DUNICODE -DDECLSPEC=  '
-        OS_WHOLE_ARCHIVE = ' -Wl,--whole-archive -lawtk_global -lextwidgets -lwidgets -lbase -lgpinyin -lstreams -lconf_io -lhal -lcsv -lubjson -lcompressors -lfribidi -lmbedtls -lminiz -ltkc_static -llinebreak -Wl,--no-whole-archive'
-        AWTK_DLL_DEPS_LIBS = AWTK_STATIC_LIBS + \
-            NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
-
-    #OS_FLAGS='-DWIN32 -D_WIN32 -DWINDOWS /EHsc -D_CONSOLE  /DEBUG /Od  /FS /Z7 -D_DEBUG /MDd '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        ' -DSDL_REAL_API -DSDL_HAPTIC_DISABLED -DSDL_SENSOR_DISABLED -DSDL_JOYSTICK_DISABLED '
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        '-D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS -D_HAS_EXCEPTIONS=0 -D_HAS_ITERATOR_DEBUGGING=0 -D_ITERATOR_DEBUG_LEVEL=0 -D_SCL_SECURE=0'
-    COMMON_CCFLAGS = COMMON_CCFLAGS + \
-        '-D_SECURE_SCL=0 -D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE '
     OS_PROJECTS = ['3rd/SDL/SConscript']
+elif OS_NAME == 'Windows':
+    OS_PROJECTS = ['3rd/SDL/SConscript']
+    OS_LINKFLAGS += '\"' + WIN32_AWTK_RES + '\" '
+
+    if TOOLS_NAME == 'mingw':
+        print('mingw')
+    else:
+        OS_WHOLE_ARCHIVE = ' /DEF:"dllexports/awtk.def" '
+
 
 CFLAGS = COMMON_CFLAGS
 LINKFLAGS = OS_LINKFLAGS
-LIBPATH = [TK_LIB_DIR, TK_BIN_DIR] + OS_LIBPATH + ['./lib/']
-CCFLAGS = OS_FLAGS + COMMON_CCFLAGS
+LIBPATH = [TK_LIB_DIR, TK_BIN_DIR] + OS_LIBPATH
+CCFLAGS = OS_FLAGS + COMMON_CCFLAGS + '-D__LINUX_PAL__ -DWITH_TLS'
 AWTK_CCFLAGS = OS_FLAGS + COMMON_CCFLAGS + ' -DWITH_WIDGET_TYPE_CHECK=1 '
 
-STATIC_LIBS = AWTK_STATIC_LIBS + \
-    NANOVG_BACKEND_LIBS + ['SDL2', 'glad'] + OS_LIBS
-SHARED_LIBS = ['awtk'] + OS_LIBS
+AWTK_STATIC_LIBS = AWTK_STATIC_LIBS + NANOVG_BACKEND_LIBS
+STATIC_LIBS = AWTK_STATIC_LIBS + ['SDL2', 'glad'] + OS_LIBS
+SHARED_LIBS = ['awtk', 'mosquitto', 'pthreadVC2'] + OS_LIBS
 
 LIBS = STATIC_LIBS
 
@@ -325,6 +282,7 @@ CPPPATH = [TK_ROOT,
            joinPath(TK_3RD_ROOT, 'gtest/googletest/include'),
            TK_TOOLS_ROOT] + OS_CPPPATH + NANOVG_BACKEND_CPPPATH + ['lib/mosquitto/include', 'lib/pthread/include']
 
+
 os.environ['LCD'] = LCD
 os.environ['TK_ROOT'] = TK_ROOT
 os.environ['CCFLAGS'] = CCFLAGS
@@ -344,53 +302,12 @@ os.environ['STATIC_LIBS'] = ';'.join(STATIC_LIBS)
 os.environ['WITH_AWTK_SO'] = 'true'
 os.environ['AWTK_CCFLAGS'] = AWTK_CCFLAGS
 
+os.environ['CROSS_COMPILE'] = str(not TOOLS_PREFIX == '')
+
 os.environ['SDL_UBUNTU_USE_IME'] = str(False)
 # os.environ['SDL_UBUNTU_USE_IME'] = str(True)
-
-
-def has_custom_cc():
-    return False
-
-
-def copySharedLib(src, dst, name):
-    if OS_NAME == 'Darwin':
-        src = os.path.join(src, 'bin/lib'+name+'.dylib')
-    elif OS_NAME == 'Linux':
-        src = os.path.join(src, 'bin/lib'+name+'.so')
-    elif OS_NAME == 'Windows':
-        src = os.path.join(src, 'bin/'+name+'.dll')
-    else:
-        print('not support ' + OS_NAME)
-        return
-
-    src = os.path.normpath(src)
-    dst = os.path.normpath(dst)
-
-    if os.path.dirname(src) == dst:
-        return
-
-    if not os.path.exists(src):
-        print('Can\'t find ' + src + '. Please build '+name+'before!')
-    else:
-        if not os.path.exists(dst):
-            os.makedirs(dst)
-        shutil.copy(src, dst)
-        print(src + '==>' + dst)
-
-
-def isBuildShared():
-    return 'WITH_AWTK_SO' in os.environ and os.environ['WITH_AWTK_SO'] == 'true'
+OS_LIBS = ['SDL2', 'glad'] + OS_LIBS
 
 
 def genIdlAndDef():
-    cmds = [
-        'node tools/idl_gen/tkc.js tools/idl_gen/tkc.json',
-        'node tools/idl_gen/index.js tools/idl_gen/idl.json',
-        'node tools/dll_def_gen/index.js tools/idl_gen/idl.json  dllexports/awtk.def false',
-        'node tools/dll_def_gen/index.js tools/idl_gen/tkc.json  dllexports/tkc.def false'
-    ]
-
-    for cmd in cmds:
-        print(cmd)
-        if os.system(cmd) != 0:
-            print('exe cmd: ' + cmd + ' failed.')
+    genIdlAndDefEx(True)

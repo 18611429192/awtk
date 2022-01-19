@@ -24,7 +24,6 @@
 BEGIN_C_DECLS
 
 #define FSCRIPT_MAX_ARGS 128
-#define FSCRIPT_FAST_VAR_NR 4
 
 /**
  * @class fscript_args_t
@@ -109,6 +108,12 @@ typedef struct _fscript_parser_error_t {
  */
 ret_t fscript_parser_error_deinit(fscript_parser_error_t* error);
 
+struct _fscript_t;
+typedef struct _fscript_t fscript_t;
+
+typedef ret_t (*fscript_on_error_t)(void* ctx, fscript_t* fscript);
+typedef ret_t (*fscript_func_t)(fscript_t* fscript, fscript_args_t* args, value_t* v);
+
 /**
  * @class fscript_t
  * @annotation ["fake"]
@@ -117,7 +122,7 @@ ret_t fscript_parser_error_deinit(fscript_parser_error_t* error);
  * 用法请参考：https://github.com/zlgopen/awtk/blob/master/docs/fscript.md
  *
  */
-typedef struct _fscript_t {
+struct _fscript_t {
   /**
    * @property {str_t} str
    * @annotation ["readable"]
@@ -125,48 +130,82 @@ typedef struct _fscript_t {
    */
   str_t str;
   /**
-   * @property {object_t*} obj
+   * @property {tk_object_t*} obj
    * @annotation ["readable"]
    * 脚本执行上下文。
    */
-  object_t* obj;
+  tk_object_t* obj;
   /**
-   * @property {value_t*} fast_vars
+   * @property {ret_t} error_code
    * @annotation ["readable"]
-   * 快速访问变量。在脚本可以用a/b/c/d来访问，需要优化时使用。
+   * 运行时错误码。
    */
-  value_t fast_vars[FSCRIPT_FAST_VAR_NR];
+  ret_t error_code;
+  /**
+   * @property {char*} error_message
+   * @annotation ["readable"]
+   * 运行时错误信息。
+   */
+  char* error_message;
+  /**
+   * @property {int32_t} error_row
+   * @annotation ["readable"]
+   * 运行时错误的行号。
+   */
+  int32_t error_row;
+  /**
+   * @property {int32_t} error_row
+   * @annotation ["readable"]
+   * 运行时错误的列号。
+   */
+  int32_t error_col;
+  /**
+   * @property {uint16_t} lines
+   * @annotation ["readable"]
+   * 代码总行数。
+   */
+  uint16_t lines;
 
   /*private*/
-  ret_t error_code;
-  char* error_message;
-  int32_t error_row;
-  int32_t error_col;
+  char* code_id;
   fscript_func_call_t* curr;
   fscript_func_call_t* first;
   fscript_func_call_t* error_func;
   bool_t breaked;
   bool_t continued;
   bool_t returned;
-  uint8_t while_count;
+  uint8_t loop_count;
 
   /*函数局部变量和参数*/
-  object_t* locals;
+  tk_object_t* locals;
   /*脚本定义的函数*/
-  object_t* funcs_def;
-} fscript_t;
+  tk_object_t* funcs_def;
 
-typedef ret_t (*fscript_func_t)(fscript_t* fscript, fscript_args_t* args, value_t* v);
+  void* on_error_ctx;
+  fscript_on_error_t on_error;
+  fscript_func_t print;
+};
 
 /**
  * @method fscript_create
  * 创建引擎对象，并解析代码。
- * @param {object_t*} obj 脚本执行上下文。
+ * @param {tk_object_t*} obj 脚本执行上下文。
  * @param {const char*} script 脚本代码。
  *
  * @return {fscript_t*} 返回fscript对象。
  */
-fscript_t* fscript_create(object_t* obj, const char* script);
+fscript_t* fscript_create(tk_object_t* obj, const char* script);
+
+/**
+ * @method fscript_create_ex
+ * 创建引擎对象，并解析代码。
+ * @param {tk_object_t*} obj 脚本执行上下文。
+ * @param {const char*} script 脚本代码。
+ * @param {bool_t} keep_func_name 是否在func_call结构后保存函数名。
+ *
+ * @return {fscript_t*} 返回fscript对象。
+ */
+fscript_t* fscript_create_ex(tk_object_t* obj, const char* script, bool_t keep_func_name);
 
 /**
  * @method fscript_syntax_check
@@ -179,13 +218,13 @@ fscript_t* fscript_create(object_t* obj, const char* script);
  * fscript_parser_error_deinit(&error);
  *```
  *
- * @param {object_t*} obj 脚本执行上下文。
+ * @param {tk_object_t*} obj 脚本执行上下文。
  * @param {const char*} script 脚本代码。
  * @param {fscript_parser_error_t*} error 用于返回错误信息。
  *
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
-ret_t fscript_syntax_check(object_t* obj, const char* script, fscript_parser_error_t* error);
+ret_t fscript_syntax_check(tk_object_t* obj, const char* script, fscript_parser_error_t* error);
 
 /**
  * @method fscript_exec
@@ -196,6 +235,16 @@ ret_t fscript_syntax_check(object_t* obj, const char* script, fscript_parser_err
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t fscript_exec(fscript_t* fscript, value_t* result);
+
+/**
+ * @method fscript_reload
+ * 重新加载代码。 
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ * @param {const char*} script 脚本代码。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_reload(fscript_t* fscript, const char* script);
 
 /**
  * @method fscript_set_error
@@ -210,6 +259,27 @@ ret_t fscript_exec(fscript_t* fscript, value_t* result);
 ret_t fscript_set_error(fscript_t* fscript, ret_t code, const char* func, const char* message);
 
 /**
+ * @method fscript_set_on_error
+ * 设置错误处理函数。
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ * @param {fscript_on_error_t} on_error 错误处理函数。
+ * @param {void*} ctx 错误处理函数的上下文。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_set_on_error(fscript_t* fscript, fscript_on_error_t on_error, void* ctx);
+
+/**
+ * @method fscript_set_print_func
+ * 设置打印日志的函数。
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ * @param {fscript_func_t} print_func 打印日志的函数。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_set_print_func(fscript_t* fscript, fscript_func_t print);
+
+/**
  * @method fscript_destroy
  * 销毁引擎对象。
  * @param {fscript_t*} fscript 脚本引擎对象。
@@ -221,13 +291,13 @@ ret_t fscript_destroy(fscript_t* fscript);
 /**
  * @method fscript_eval
  * 执行一段脚本。
- * @param {object_t*} obj 脚本执行上下文。
+ * @param {tk_object_t*} obj 脚本执行上下文。
  * @param {const char*} script 脚本代码。
  * @param {value_t*} result 执行结果(调用者需要用value_reset函数清除result)。
  *
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
-ret_t fscript_eval(object_t* obj, const char* script, value_t* result);
+ret_t fscript_eval(tk_object_t* obj, const char* script, value_t* result);
 
 /**
  * @method fscript_global_init
@@ -274,6 +344,51 @@ ret_t fscript_global_deinit(void);
  */
 double tk_expr_eval(const char* expr);
 
+/**
+ * @method fscript_get_global_object
+ * 获取fscript的全局对象。
+ * 
+ * @return {tk_object_t*} 返回fscript的全局对象。
+ */
+tk_object_t* fscript_get_global_object(void);
+
+/**
+ * @class fscript_func_call_t
+ * 
+ * 函数描述。
+ *
+ */
+struct _fscript_func_call_t {
+  /**
+   * @property {void*} ctx
+   * @annotation ["readable"]
+   * 函数需要的上下文。
+   * >目前主要保持自定义函数的实现。
+   */
+  void* ctx;
+  /**
+   * @property {uint16_t} row
+   * @annotation ["readable"]
+   * 对应源代码行号。
+   */
+  uint16_t row;
+  /**
+   * @property {uint16_t} row
+   * @annotation ["readable"]
+   * 对应源代码列号。
+   */
+  uint16_t col;
+  /**
+   * @property {fscript_func_t} func
+   * @annotation ["readable"]
+   * 函数指针。
+   */
+  fscript_func_t func;
+  /*private*/
+  fscript_args_t args;
+  fscript_func_call_t* next;
+};
+
 /*注册自定义函数时，属性名的前缀。*/
 #define STR_FSCRIPT_FUNCTION_PREFIX "function."
 
@@ -283,6 +398,41 @@ double tk_expr_eval(const char* expr);
     fscript_set_error(fscript, code, __FUNCTION__, "" #predicate " not satisfied."); \
     return code;                                                                     \
   }
+
+#define VALUE_TYPE_FSCRIPT_ID 128
+#define VALUE_TYPE_FSCRIPT_FUNC VALUE_TYPE_FSCRIPT_ID + 1
+
+static inline fscript_func_call_t* value_func(const value_t* v) {
+  return_value_if_fail(v->type == VALUE_TYPE_FSCRIPT_FUNC, NULL);
+  return (fscript_func_call_t*)(v->value.ptr);
+}
+
+static inline const char* value_id(const value_t* v) {
+  return_value_if_fail(v->type == VALUE_TYPE_FSCRIPT_ID, NULL);
+  return (const char*)(v->value.str);
+}
+
+typedef ret_t (*fscript_on_init_t)(fscript_t* fscript, const char* code);
+typedef ret_t (*fscript_on_deinit_t)(fscript_t* fscript);
+typedef ret_t (*fscript_before_exec_t)(fscript_t* fscript);
+typedef ret_t (*fscript_after_exec_t)(fscript_t* fscript);
+typedef ret_t (*fscript_set_var_t)(fscript_t* fscript, const char* name, const value_t* v);
+typedef ret_t (*fscript_exec_func_t)(fscript_t* fscript, const char* name,
+                                     fscript_func_call_t* iter, value_t* result);
+
+ret_t fscript_set_var_default(fscript_t* fscript, const char* name, const value_t* value);
+ret_t fscript_exec_func_default(fscript_t* fscript, fscript_func_call_t* iter, value_t* result);
+
+typedef struct _fscript_hooks_t {
+  fscript_on_init_t on_init;
+  fscript_on_deinit_t on_deinit;
+  fscript_set_var_t set_var;
+  fscript_exec_func_t exec_func;
+  fscript_before_exec_t before_exec;
+  fscript_after_exec_t after_exec;
+} fscript_hooks_t;
+
+ret_t fscript_set_hooks(const fscript_hooks_t* hooks);
 
 END_C_DECLS
 

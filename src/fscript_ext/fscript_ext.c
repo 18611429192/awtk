@@ -41,10 +41,6 @@
 #include "fscript_ext/fscript_iostream_inet.h"
 #include "fscript_ext/fscript_iostream_serial.h"
 
-#ifdef FSCRIPT_WITH_WIDGET
-#include "fscript_ext/fscript_widget.h"
-#endif /*FSCRIPT_WITH_WIDGET*/
-
 static ret_t func_value_is_valid(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
   value_set_bool(result, args->args->type != VALUE_TYPE_INVALID);
@@ -109,6 +105,26 @@ static ret_t func_totitle(fscript_t* fscript, fscript_args_t* args, value_t* res
   return RET_OK;
 }
 
+static ret_t func_text_reverse(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  str_t* str = &(fscript->str);
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+
+  str_set(str, value_str(args->args));
+  str_reverse(str);
+  value_set_str(result, str->str);
+
+  return RET_OK;
+}
+
+static ret_t func_text_count(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  str_t* str = &(fscript->str);
+  FSCRIPT_FUNC_CHECK(args->size == 2, RET_BAD_PARAMS);
+  str_set(str, value_str(args->args));
+  value_set_int(result, str_count(str, value_str(args->args + 1)));
+
+  return RET_OK;
+}
+
 static ret_t func_usubstr(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   wstr_t wstr;
   int32_t start = 0;
@@ -153,21 +169,28 @@ static ret_t func_usubstr(fscript_t* fscript, fscript_args_t* args, value_t* res
   return ret;
 }
 
-static ret_t func_char_at(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+static ret_t func_char_at_impl(fscript_t* fscript, fscript_args_t* args, value_t* result,
+                               int32_t index) {
   wstr_t wstr;
-  int32_t index = 0;
   ret_t ret = RET_OK;
   const char* str = NULL;
-  FSCRIPT_FUNC_CHECK(args->size == 2, RET_BAD_PARAMS);
+  FSCRIPT_FUNC_CHECK(args->size >= 1, RET_BAD_PARAMS);
   str = value_str(args->args);
   return_value_if_fail(str != NULL && *str, RET_BAD_PARAMS);
-  index = value_int(args->args + 1);
+
+  if (args->size > 1) {
+    index = value_int(args->args + 1);
+  }
 
   wstr_init(&wstr, 0);
   return_value_if_fail(wstr_set_utf8(&wstr, str) == RET_OK, RET_OOM);
 
   if (index < 0) {
     index += wstr.size;
+  }
+
+  if (index > wstr.size) {
+    index = index % wstr.size;
   }
 
   if (index >= 0 && index < wstr.size) {
@@ -180,6 +203,22 @@ static ret_t func_char_at(fscript_t* fscript, fscript_args_t* args, value_t* res
   wstr_reset(&wstr);
 
   return ret;
+}
+
+static ret_t func_char_at(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return func_char_at_impl(fscript, args, result, 0);
+}
+
+static ret_t func_char_at_first(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return func_char_at_impl(fscript, args, result, 0);
+}
+
+static ret_t func_char_at_last(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return func_char_at_impl(fscript, args, result, -1);
+}
+
+static ret_t func_char_at_random(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return func_char_at_impl(fscript, args, result, random());
 }
 
 static ret_t func_trim_left(fscript_t* fscript, fscript_args_t* args, value_t* result) {
@@ -245,6 +284,77 @@ static ret_t func_value_get_binary_data(fscript_t* fscript, fscript_args_t* args
   return RET_FAIL;
 }
 
+static ret_t func_global_var(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+  value_set_bool(result, TRUE);
+  return RET_OK;
+}
+
+static ret_t func_member_var(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+  value_set_bool(result, TRUE);
+  return RET_OK;
+}
+
+static ret_t func_str_is_empty(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+  value_set_bool(result, tk_strlen(value_str(args->args)) == 0);
+  return RET_OK;
+}
+
+static ret_t func_str_len(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+  value_set_uint32(result, tk_strlen(value_str(args->args)));
+  return RET_OK;
+}
+
+static ret_t func_str_append(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  str_t* str = &(fscript->str);
+  FSCRIPT_FUNC_CHECK(args->size == 2, RET_BAD_PARAMS);
+
+  str_set(str, value_str(args->args));
+  str_append(str, value_str(args->args + 1));
+  value_set_str(result, str->str);
+
+  return RET_OK;
+}
+
+static ret_t func_flow_get(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  char name[64];
+  const char* type = NULL;
+  const char* subname = NULL;
+  FSCRIPT_FUNC_CHECK(args->size >= 2, RET_BAD_PARAMS);
+  type = value_str(args->args);
+  subname = value_str(args->args + 1);
+  FSCRIPT_FUNC_CHECK(name != NULL && subname != NULL, RET_BAD_PARAMS);
+
+  tk_snprintf(name, sizeof(name) - 1, "%s.%s", type, subname);
+  if (tk_object_get_prop(fscript->obj, name, result) != RET_OK) {
+    if (args->size > 2) {
+      value_copy(result, args->args + 2);
+    } else {
+      result->type = VALUE_TYPE_INVALID;
+    }
+  }
+
+  return RET_OK;
+}
+
+static ret_t func_flow_set(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  char name[64];
+  const char* type = NULL;
+  const char* subname = NULL;
+  FSCRIPT_FUNC_CHECK(args->size == 3, RET_BAD_PARAMS);
+  type = value_str(args->args);
+  subname = value_str(args->args + 1);
+  FSCRIPT_FUNC_CHECK(name != NULL && subname != NULL, RET_BAD_PARAMS);
+
+  tk_snprintf(name, sizeof(name) - 1, "%s.%s", type, subname);
+  value_set_bool(result, tk_object_set_prop(fscript->obj, name, args->args + 2) == RET_OK);
+
+  return RET_OK;
+}
+
 FACTORY_TABLE_BEGIN(s_ext_basic)
 FACTORY_TABLE_ENTRY("index_of", func_index_of)
 FACTORY_TABLE_ENTRY("last_index_of", func_last_index_of)
@@ -253,7 +363,12 @@ FACTORY_TABLE_ENTRY("trim_left", func_trim_left)
 FACTORY_TABLE_ENTRY("trim_right", func_trim_right)
 FACTORY_TABLE_ENTRY("totitle", func_totitle)
 FACTORY_TABLE_ENTRY("char_at", func_char_at)
+FACTORY_TABLE_ENTRY("text_count", func_text_count)
+FACTORY_TABLE_ENTRY("text_reverse", func_text_reverse)
 FACTORY_TABLE_ENTRY("usubstr", func_usubstr)
+/*用于反向解析保留信息*/
+FACTORY_TABLE_ENTRY("member_var", func_member_var)
+FACTORY_TABLE_ENTRY("global_var", func_global_var)
 #ifdef HAS_STDIO
 FACTORY_TABLE_ENTRY("prompt", func_prompt)
 #endif /*HAS_STDIO*/
@@ -261,6 +376,17 @@ FACTORY_TABLE_ENTRY("value_is_valid", func_value_is_valid)
 FACTORY_TABLE_ENTRY("value_is_null", func_value_is_null)
 FACTORY_TABLE_ENTRY("value_get_binary_data", func_value_get_binary_data)
 FACTORY_TABLE_ENTRY("value_get_binary_size", func_value_get_binary_size)
+
+/*主要给AWBLOCK使用*/
+FACTORY_TABLE_ENTRY("str_len", func_str_len)
+FACTORY_TABLE_ENTRY("str_is_empty", func_str_is_empty)
+FACTORY_TABLE_ENTRY("str_append", func_str_append)
+FACTORY_TABLE_ENTRY("char_at_first", func_char_at_first)
+FACTORY_TABLE_ENTRY("char_at_last", func_char_at_last)
+FACTORY_TABLE_ENTRY("char_at_random", func_char_at_random)
+FACTORY_TABLE_ENTRY("flow_get", func_flow_get)
+FACTORY_TABLE_ENTRY("flow_set", func_flow_set)
+
 FACTORY_TABLE_END()
 
 ret_t fscript_ext_init(void) {
@@ -326,10 +452,6 @@ ret_t fscript_ext_init(void) {
 #ifdef FSCRIPT_WITH_DATE_TIME
   fscript_date_time_register();
 #endif /*FSCRIPT_WITH_DATE_TIME*/
-
-#ifdef FSCRIPT_WITH_WIDGET
-  fscript_widget_register();
-#endif /*FSCRIPT_WITH_WIDGET*/
 
   return RET_OK;
 }

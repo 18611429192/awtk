@@ -220,6 +220,8 @@ typedef struct _edit_t {
   uint8_t left_margin;
   uint8_t right_margin;
 
+  bool_t is_key_inputing;
+
   uint32_t idle_id;
   uint32_t timer_id;
   text_edit_t* model;
@@ -230,7 +232,6 @@ typedef struct _edit_t {
   edit_pre_input_t pre_input;
   edit_is_valid_char_t is_valid_char;
   edit_is_valid_value_t is_valid_value;
-  uint64_t last_user_action_time;
 } edit_t;
 
 /**
@@ -241,6 +242,11 @@ typedef struct _edit_t {
 /**
  * @event {value_change_event_t} EVT_VALUE_CHANGED
  * 文本改变事件。
+ */
+
+/**
+ * @event {event_t} EVT_IM_ACTION
+ * 软键盘Action点击事件。
  */
 
 /**
@@ -308,6 +314,18 @@ ret_t edit_set_int(widget_t* widget, int32_t value);
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t edit_set_double(widget_t* widget, double value);
+
+/**
+ * @method edit_set_double_ex
+ * 设置double类型的值。
+ * @annotation ["scriptable"]
+ * @param {widget_t*} widget widget对象。
+ * @param {const char*} format 格式(缺省为"%2.2lf")。
+ * @param {double} value 值。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t edit_set_double_ex(widget_t* widget, const char* format, double value);
 
 /**
  * @method edit_set_text_limit

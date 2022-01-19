@@ -207,6 +207,7 @@ wh_t canvas_get_height(canvas_t* c);
  * @method canvas_get_clip_rect
  * 获取裁剪区。
  *
+ * @annotation ["scriptable"]
  * @param {canvas_t*} c canvas对象。
  * @param {rect_t*} r rect对象。
  *
@@ -223,7 +224,7 @@ ret_t canvas_get_clip_rect(canvas_t* c, rect_t* r);
  * @param {xy_t} right 矩形区域右边。
  * @param {xy_t} bottom 矩形区域下边。
  *
- * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ * @return {bool_t} 返回TRUE表示是，否则表示不是。
  */
 bool_t canvas_is_rect_in_clip_rect(canvas_t* c, xy_t left, xy_t top, xy_t right, xy_t bottom);
 
@@ -712,9 +713,19 @@ ret_t canvas_reset(canvas_t* c);
  */
 ret_t canvas_draw_image_at(canvas_t* c, bitmap_t* img, xy_t x, xy_t y);
 
-/*public for internal use*/
+/**
+ * @method canvas_draw_icon_in_rect
+ * 在指定rect内绘制icon。
+ *
+ * @param {canvas_t*} c canvas对象。
+ * @param {bitmap_t*} img 图片对象。
+ * @param {const rect_t*} r 矩形区域。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
 ret_t canvas_draw_icon_in_rect(canvas_t* c, bitmap_t* img, const rect_t* r);
 
+/*public for internal use*/
 ret_t canvas_draw_image_center(canvas_t* c, bitmap_t* img, const rect_t* dst);
 ret_t canvas_draw_image_patch3_x(canvas_t* c, bitmap_t* img, const rect_t* dst);
 ret_t canvas_draw_image_patch3_x_scale_y(canvas_t* c, bitmap_t* img, const rect_t* dst);

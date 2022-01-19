@@ -14,7 +14,6 @@
  *
  */
 
-#ifndef WITHOUT_FSCRIPT
 #include "tkc/mem.h"
 #include "tkc/utf8.h"
 #include "tkc/utils.h"
@@ -22,18 +21,18 @@
 #include "tkc/fscript.h"
 #include "tkc/object_default.h"
 #include "tkc/general_factory.h"
+#include "tkc/object_locker.h"
 
-struct _fscript_func_call_t {
-  void* ctx;
-  fscript_func_t func;
-  fscript_args_t args;
-  fscript_func_call_t* next;
-  uint16_t row;
-  uint16_t col;
-};
+#ifndef WITHOUT_FSCRIPT
+#define STR_GLOBAL_PREFIX "global."
+#define GLOBAL_PREFIX_LEN 7
 
-#define VALUE_TYPE_JSCRIPT_ID 128
-#define VALUE_TYPE_JSCRIPT_FUNC VALUE_TYPE_JSCRIPT_ID + 1
+static const fscript_hooks_t* s_hooks;
+
+ret_t fscript_set_hooks(const fscript_hooks_t* hooks) {
+  s_hooks = hooks;
+  return RET_OK;
+}
 
 static ret_t func_function_def(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   return RET_OK;
@@ -42,6 +41,21 @@ static ret_t func_if(fscript_t* fscript, fscript_args_t* args, value_t* result) 
   return RET_OK;
 }
 static ret_t func_while(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return RET_OK;
+}
+static ret_t func_until(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return RET_OK;
+}
+static ret_t func_repeat_times(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return RET_OK;
+}
+static ret_t func_repeat(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return RET_OK;
+}
+static ret_t func_for(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  return RET_OK;
+}
+static ret_t func_for_in(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   return RET_OK;
 }
 static ret_t func_noop(fscript_t* fscript, fscript_args_t* args, value_t* result) {
@@ -57,8 +71,16 @@ static ret_t func_return(fscript_t* fscript, fscript_args_t* args, value_t* resu
 static ret_t func_get(fscript_t* fscript, fscript_args_t* args, value_t* result);
 static ret_t func_set(fscript_t* fscript, fscript_args_t* args, value_t* result);
 static ret_t func_unset(fscript_t* fscript, fscript_args_t* args, value_t* result);
-static ret_t fscript_exec_func(fscript_t* fscript, fscript_func_call_t* iter, value_t* result);
 static ret_t func_set_local(fscript_t* fscript, fscript_args_t* args, value_t* result);
+
+static ret_t fscript_exec_func(fscript_t* fscript, const char* name, fscript_func_call_t* iter,
+                               value_t* result) {
+  if (s_hooks != NULL && s_hooks->exec_func != NULL) {
+    return s_hooks->exec_func(fscript, name, iter, result);
+  } else {
+    return fscript_exec_func_default(fscript, iter, result);
+  }
+}
 
 ret_t fscript_set_error(fscript_t* fscript, ret_t code, const char* func, const char* message) {
   fscript->error_code = code;
@@ -70,18 +92,34 @@ ret_t fscript_set_error(fscript_t* fscript, ret_t code, const char* func, const 
     log_debug("(%d:%d): %s code=%d %s\n", fscript->curr->row, fscript->curr->col, func, code,
               message);
   }
+
+  if (fscript->on_error != NULL) {
+    fscript->on_error(fscript->on_error_ctx, fscript);
+  }
+
+  return RET_OK;
+}
+
+ret_t fscript_set_on_error(fscript_t* fscript, fscript_on_error_t on_error, void* ctx) {
+  return_value_if_fail(fscript != NULL, RET_BAD_PARAMS);
+  fscript->on_error = on_error;
+  fscript->on_error_ctx = ctx;
+
+  return RET_OK;
+}
+
+ret_t fscript_set_print_func(fscript_t* fscript, fscript_func_t print) {
+  return_value_if_fail(fscript != NULL, RET_BAD_PARAMS);
+
+  fscript->print = print;
+
   return RET_OK;
 }
 
 static value_t* value_set_func(value_t* v, fscript_func_call_t* func) {
   value_set_pointer(v, func);
-  v->type = VALUE_TYPE_JSCRIPT_FUNC;
+  v->type = VALUE_TYPE_FSCRIPT_FUNC;
   return v;
-}
-
-static fscript_func_call_t* value_func(const value_t* v) {
-  return_value_if_fail(v->type == VALUE_TYPE_JSCRIPT_FUNC, NULL);
-  return (fscript_func_call_t*)(v->value.ptr);
 }
 
 static bool_t value_is_digit(value_t* v) {
@@ -139,17 +177,24 @@ static ret_t func_args_init(fscript_args_t* args, uint16_t init_args_capacity) {
 }
 
 static ret_t fscript_func_call_destroy(fscript_func_call_t* call);
-static ret_t func_args_deinit(fscript_args_t* args) {
+
+static ret_t func_args_reset(fscript_args_t* args) {
   uint32_t i = 0;
   for (i = 0; i < args->size; i++) {
     value_t* v = args->args + i;
-    if (v->type == VALUE_TYPE_JSCRIPT_FUNC) {
+    if (v->type == VALUE_TYPE_FSCRIPT_FUNC) {
       fscript_func_call_destroy(value_func(v));
     } else {
-      v->type = v->type == VALUE_TYPE_JSCRIPT_ID ? VALUE_TYPE_STRING : v->type;
+      v->type = v->type == VALUE_TYPE_FSCRIPT_ID ? VALUE_TYPE_STRING : v->type;
     }
     value_reset(args->args + i);
   }
+
+  return RET_OK;
+}
+
+static ret_t func_args_deinit(fscript_args_t* args) {
+  func_args_reset(args);
   TKMEM_FREE(args->args);
   memset(args, 0x00, sizeof(fscript_args_t));
 
@@ -171,14 +216,17 @@ static ret_t fscript_func_call_destroy(fscript_func_call_t* call) {
 }
 
 typedef struct _fscript_function_def_t {
+  char* name;
   darray_t params;
   fscript_func_call_t* body;
 } fscript_function_def_t;
 
-static fscript_function_def_t* fscript_function_def_create(fscript_func_call_t* body) {
+static fscript_function_def_t* fscript_function_def_create(const char* name,
+                                                           fscript_func_call_t* body) {
   fscript_function_def_t* func = TKMEM_ZALLOC(fscript_function_def_t);
   return_value_if_fail(func != NULL, NULL);
   func->body = body;
+  func->name = tk_strdup(name);
   darray_init(&(func->params), 3, default_destroy, NULL);
   return func;
 }
@@ -187,6 +235,7 @@ static ret_t fscript_function_def_destroy(fscript_function_def_t* func) {
   return_value_if_fail(func != NULL, RET_BAD_PARAMS);
   darray_deinit(&(func->params));
   fscript_func_call_destroy(func->body);
+  TKMEM_FREE(func->name);
   memset(func, 0x00, sizeof(fscript_function_def_t));
   TKMEM_FREE(func);
 
@@ -226,8 +275,9 @@ typedef struct _token_t {
 } token_t;
 
 typedef struct _fscript_parser_t {
-  object_t* obj;
+  tk_object_t* obj;
   token_t token;
+  char* code_id;
   const char* str;
   const char* cursor;
 
@@ -235,97 +285,59 @@ typedef struct _fscript_parser_t {
   str_t temp;
   uint16_t row;
   uint16_t col;
-  object_t* funcs_def;
+  tk_object_t* funcs_def;
   fscript_func_call_t* first;
   fscript_parser_error_t* error;
+  bool_t keep_func_name;
 } fscript_parser_t;
 
 static ret_t fexpr_parse(fscript_parser_t* parser, value_t* result);
 static ret_t fscript_parse_statements(fscript_parser_t* parser, fscript_func_call_t* acall);
 static fscript_func_call_t* fscript_func_call_create(fscript_parser_t* parser, const char* name,
                                                      uint32_t size);
-static inline bool_t is_fast_var(const char* name) {
-  char c = name[1];
-  int32_t index = *name - 'a';
-
-  if (c != '\0' && c != '.') {
-    return FALSE;
-  }
-
-  if (index < 0 || index >= FSCRIPT_FAST_VAR_NR) {
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-static value_t* fscript_get_fast_var(fscript_t* fscript, const char* name) {
-  int32_t index = name[0] - 'a';
-  if (index >= 0 && index < ARRAY_SIZE(fscript->fast_vars)) {
-    return fscript->fast_vars + index;
-  }
-
-  return NULL;
-}
-
 static ret_t fscript_get_var(fscript_t* fscript, const char* name, value_t* value) {
-  ret_t ret = RET_OK;
   value_set_str(value, NULL);
   return_value_if_fail(name != NULL, RET_BAD_PARAMS);
   if (*name == '$') {
     name += 1;
   }
 
+  if (strncmp(name, STR_GLOBAL_PREFIX, GLOBAL_PREFIX_LEN) == 0) {
+    return tk_object_get_prop(fscript_get_global_object(), name + GLOBAL_PREFIX_LEN, value);
+  }
+
   if (fscript->locals != NULL) {
-    if (object_get_prop(fscript->locals, name, value) == RET_OK) {
+    if (tk_object_get_prop(fscript->locals, name, value) == RET_OK) {
       return RET_OK;
     }
   }
 
-  if (is_fast_var(name)) {
-    value_t* var = fscript_get_fast_var(fscript, name);
-    if (name[1] == '.') {
-      if (var->type == VALUE_TYPE_OBJECT) {
-        object_t* obj = value_object(var);
-        ret = object_get_prop(obj, name + 2, value);
-      } else {
-        ret = object_get_prop(fscript->obj, name, value);
-      }
-    } else {
-      ret = value_copy(value, var);
-    }
+  return tk_object_get_prop(fscript->obj, name, value);
+}
+
+ret_t fscript_set_var_default(fscript_t* fscript, const char* name, const value_t* value) {
+  value_t v;
+  ret_t ret = RET_FAIL;
+
+  if (strncmp(name, STR_GLOBAL_PREFIX, GLOBAL_PREFIX_LEN) == 0) {
+    return tk_object_set_prop(fscript_get_global_object(), name + GLOBAL_PREFIX_LEN, value);
+  }
+
+  if (fscript->locals != NULL && tk_object_get_prop(fscript->locals, name, &v) == RET_OK) {
+    ret = tk_object_set_prop(fscript->locals, name, value);
   } else {
-    ret = object_get_prop(fscript->obj, name, value);
+    ret = tk_object_set_prop(fscript->obj, name, value);
   }
 
   return ret;
 }
 
-static ret_t fscript_set_var(fscript_t* fscript, const char* name, const value_t* value) {
-  ret_t ret = RET_FAIL;
-  if (is_fast_var(name)) {
-    value_t* var = fscript_get_fast_var(fscript, name);
-    if (name[1] == '.') {
-      if (var->type == VALUE_TYPE_OBJECT) {
-        object_t* obj = value_object(var);
-        ret = object_set_prop(obj, name + 2, value);
-      } else {
-        ret = object_set_prop(fscript->obj, name, value);
-      }
-    } else {
-      value_reset(var);
-      ret = value_deep_copy(var, value);
-    }
+ret_t fscript_set_var(fscript_t* fscript, const char* name, const value_t* value) {
+  if (s_hooks != NULL && s_hooks->set_var != NULL) {
+    return s_hooks->set_var(fscript, name, value);
   } else {
-    value_t v;
-    if (fscript->locals != NULL && object_get_prop(fscript->locals, name, &v) == RET_OK) {
-      ret = object_set_prop(fscript->locals, name, value);
-    } else {
-      ret = object_set_prop(fscript->obj, name, value);
-    }
+    return fscript_set_var_default(fscript, name, value);
   }
-
-  return ret;
 }
 
 static ret_t fscript_eval_arg(fscript_t* fscript, fscript_func_call_t* iter, uint32_t i,
@@ -335,7 +347,7 @@ static ret_t fscript_eval_arg(fscript_t* fscript, fscript_func_call_t* iter, uin
   int32_t save_type = s->type;
   value_set_str(&v, NULL);
   value_set_str(d, NULL);
-  if (s->type == VALUE_TYPE_JSCRIPT_ID) {
+  if (s->type == VALUE_TYPE_FSCRIPT_ID) {
     s->type = VALUE_TYPE_STRING;
     if ((iter->func == func_set_local || iter->func == func_set || iter->func == func_unset ||
          iter->func == func_get) &&
@@ -343,7 +355,7 @@ static ret_t fscript_eval_arg(fscript_t* fscript, fscript_func_call_t* iter, uin
       value_copy(d, s); /*func_set accept id/str as first param*/
     } else {
       const char* name = value_str(s);
-      if (fscript->while_count > 0) {
+      if (fscript->loop_count > 0) {
         if (tk_str_eq(name, "break")) {
           fscript->breaked = TRUE;
           s->type = save_type;
@@ -374,8 +386,8 @@ static ret_t fscript_eval_arg(fscript_t* fscript, fscript_func_call_t* iter, uin
         }
       }
     }
-  } else if (s->type == VALUE_TYPE_JSCRIPT_FUNC) {
-    fscript_exec_func(fscript, value_func(s), d);
+  } else if (s->type == VALUE_TYPE_FSCRIPT_FUNC) {
+    fscript_exec_func(fscript, NULL, value_func(s), d);
   } else {
     value_copy(d, s);
   }
@@ -385,48 +397,177 @@ static ret_t fscript_eval_arg(fscript_t* fscript, fscript_func_call_t* iter, uin
 }
 
 static ret_t fscript_exec_if(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  uint32_t i = 0;
+  uint32_t n = 0;
   value_t condition;
   return_value_if_fail(iter->args.size >= 2, RET_FAIL);
-  value_set_int(&condition, 0);
 
-  fscript_eval_arg(fscript, iter, 0, &condition);
-  if (value_bool(&condition)) {
-    fscript_eval_arg(fscript, iter, 1, result);
-  } else if (iter->args.size > 2) {
-    fscript_eval_arg(fscript, iter, 2, result);
+  n = iter->args.size / 2;
+  for (i = 0; i < n; i++) {
+    value_set_bool(&condition, FALSE);
+    return_value_if_fail(fscript_eval_arg(fscript, iter, 2 * i, &condition) == RET_OK, RET_FAIL);
+    if (value_bool(&condition)) {
+      return fscript_eval_arg(fscript, iter, 2 * i + 1, result);
+    }
+  }
+
+  if ((2 * i) < iter->args.size) {
+    return fscript_eval_arg(fscript, iter, 2 * i, result);
   } else {
     value_set_int(result, 0);
+    return RET_OK;
+  }
+}
+
+static ret_t fscript_exec_loop_body(fscript_t* fscript, fscript_func_call_t* iter, uint32_t start,
+                                    value_t* result, bool_t* done) {
+  uint32_t i = 1;
+  for (i = start; i < iter->args.size; i++) {
+    value_reset(result);
+    fscript_eval_arg(fscript, iter, i, result);
+    if (fscript->breaked) {
+      *done = TRUE;
+      fscript->breaked = FALSE;
+      break;
+    } else if (fscript->returned) {
+      *done = TRUE;
+    } else if (fscript->continued) {
+      fscript->continued = FALSE;
+      break;
+    }
   }
 
   return RET_OK;
 }
 
-static ret_t fscript_exec_while(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+static ret_t fscript_exec_while_or_until(fscript_t* fscript, fscript_func_call_t* iter,
+                                         value_t* result, bool_t is_while) {
   value_t condition;
   bool_t done = FALSE;
-  return_value_if_fail(iter->args.size > 1, RET_FAIL);
+  FSCRIPT_FUNC_CHECK(iter->args.size > 1, RET_FAIL);
 
-  fscript->while_count++;
+  fscript->loop_count++;
   value_set_int(&condition, 0);
-  while (!done && fscript_eval_arg(fscript, iter, 0, &condition) == RET_OK &&
-         value_bool(&condition)) {
-    uint32_t i = 1;
-    for (i = 1; i < iter->args.size; i++) {
-      value_reset(result);
-      fscript_eval_arg(fscript, iter, i, result);
-      if (fscript->breaked) {
-        done = TRUE;
-        fscript->breaked = FALSE;
-        break;
-      } else if (fscript->continued) {
-        fscript->continued = FALSE;
-        break;
-      }
+  while (!done && fscript_eval_arg(fscript, iter, 0, &condition) == RET_OK) {
+    if (is_while ? !value_bool(&condition) : value_bool(&condition)) {
+      break;
     }
+    fscript_exec_loop_body(fscript, iter, 1, result, &done);
   }
-  fscript->while_count--;
+  fscript->loop_count--;
 
   return RET_OK;
+}
+
+/*repeat(a, 0, 100, 1) {*/
+static ret_t fscript_exec_repeat(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  value_t v;
+  int32_t start = 0;
+  int32_t end = 0;
+  int32_t delta = 0;
+  bool_t done = FALSE;
+  const char* id = NULL;
+  FSCRIPT_FUNC_CHECK(iter->args.size > 4, RET_FAIL);
+
+  id = value_id(iter->args.args);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 1, &v) == RET_OK, RET_BAD_PARAMS);
+  start = value_int(&v);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 2, &v) == RET_OK, RET_BAD_PARAMS);
+  end = value_int(&v);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 3, &v) == RET_OK, RET_BAD_PARAMS);
+  delta = value_int(&v);
+  if (fscript->locals == NULL) {
+    fscript->locals = object_default_create();
+  }
+
+  fscript->loop_count++;
+  while ((start != end) && !done) {
+    value_set_int(&v, start);
+    break_if_fail(tk_object_set_prop(fscript->locals, id, &v) == RET_OK);
+    fscript_exec_loop_body(fscript, iter, 4, result, &done);
+    start += delta;
+  }
+  fscript->loop_count--;
+
+  return RET_OK;
+}
+
+static ret_t fscript_exec_for(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  value_t v;
+  bool_t done = FALSE;
+  FSCRIPT_FUNC_CHECK(iter->args.size > 3, RET_FAIL);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 0, &v) == RET_OK, RET_BAD_PARAMS);
+
+  fscript->loop_count++;
+  while (!done) {
+    break_if_fail(fscript_eval_arg(fscript, iter, 1, &v) == RET_OK);
+    if (!value_bool(&v)) {
+      break;
+    }
+    fscript_exec_loop_body(fscript, iter, 3, result, &done);
+    break_if_fail(fscript_eval_arg(fscript, iter, 2, &v) == RET_OK);
+  }
+  fscript->loop_count--;
+
+  return RET_OK;
+}
+
+static ret_t fscript_exec_for_in(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  value_t v;
+  char prop[32];
+  uint32_t i = 0;
+  uint32_t n = 0;
+  bool_t done = FALSE;
+  object_t* obj = NULL;
+  const char* id = NULL;
+  FSCRIPT_FUNC_CHECK(iter->args.size > 2, RET_FAIL);
+  id = value_id(iter->args.args);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 1, &v) == RET_OK, RET_BAD_PARAMS);
+  obj = value_object(&v);
+  FSCRIPT_FUNC_CHECK(id != NULL && obj != NULL, RET_FAIL);
+
+  if (fscript->locals == NULL) {
+    fscript->locals = object_default_create();
+  }
+
+  fscript->loop_count++;
+  n = tk_object_get_prop_int(obj, TK_OBJECT_PROP_SIZE, 0);
+  for (i = 0; ((i < n) && !done); i++) {
+    tk_snprintf(prop, sizeof(prop) - 1, "[%u]", i);
+    break_if_fail(tk_object_get_prop(obj, prop, &v) == RET_OK);
+
+    tk_object_set_prop(fscript->locals, id, &v);
+    fscript_exec_loop_body(fscript, iter, 2, result, &done);
+  }
+  fscript->loop_count--;
+
+  return RET_OK;
+}
+
+static ret_t fscript_exec_repeat_times(fscript_t* fscript, fscript_func_call_t* iter,
+                                       value_t* result) {
+  value_t v;
+  uint32_t i = 0;
+  uint32_t n = 0;
+  bool_t done = FALSE;
+  FSCRIPT_FUNC_CHECK(iter->args.size > 1, RET_FAIL);
+  FSCRIPT_FUNC_CHECK(fscript_eval_arg(fscript, iter, 0, &v) == RET_OK, RET_BAD_PARAMS);
+
+  n = value_int(&v);
+  fscript->loop_count++;
+  for (i = 0; i < n && !done; i++) {
+    fscript_exec_loop_body(fscript, iter, 1, result, &done);
+  }
+  fscript->loop_count--;
+
+  return RET_OK;
+}
+static ret_t fscript_exec_while(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  return fscript_exec_while_or_until(fscript, iter, result, TRUE);
+}
+
+static ret_t fscript_exec_until(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+  return fscript_exec_while_or_until(fscript, iter, result, FALSE);
 }
 
 static ret_t fscript_exec_core_func(fscript_t* fscript, fscript_func_call_t* iter,
@@ -435,6 +576,16 @@ static ret_t fscript_exec_core_func(fscript_t* fscript, fscript_func_call_t* ite
     return fscript_exec_if(fscript, iter, result);
   } else if (iter->func == func_while) {
     return fscript_exec_while(fscript, iter, result);
+  } else if (iter->func == func_until) {
+    return fscript_exec_until(fscript, iter, result);
+  } else if (iter->func == func_repeat) {
+    return fscript_exec_repeat(fscript, iter, result);
+  } else if (iter->func == func_for) {
+    return fscript_exec_for(fscript, iter, result);
+  } else if (iter->func == func_for_in) {
+    return fscript_exec_for_in(fscript, iter, result);
+  } else if (iter->func == func_repeat_times) {
+    return fscript_exec_repeat_times(fscript, iter, result);
   } else if (iter->func == func_function_def) {
     return RET_OK;
   }
@@ -447,16 +598,29 @@ static ret_t fscript_exec_ext_func(fscript_t* fscript, fscript_func_call_t* iter
   uint32_t i = 0;
   ret_t ret = RET_OK;
   fscript_args_t args;
+  value_t args_values[5];
 
   value_set_int(&v, 0);
-  func_args_init(&args, iter->args.size);
+  if (iter->args.size <= ARRAY_SIZE(args_values)) {
+    memset(&args, 0x00, sizeof(args));
+    memset(&args_values, 0x00, sizeof(args_values));
+    args.capacity = ARRAY_SIZE(args_values);
+    args.args = args_values;
+  } else {
+    func_args_init(&args, iter->args.size);
+  }
   args.size = iter->args.size;
+
   return_value_if_fail((args.args != NULL || args.size == 0), RET_OOM);
   for (i = 0; i < iter->args.size; i++) {
     ret = fscript_eval_arg(fscript, iter, i, args.args + i);
     if (fscript->breaked || fscript->continued || fscript->returned) {
       value_deep_copy(result, args.args + i);
-      func_args_deinit(&args);
+      if (iter->args.size <= ARRAY_SIZE(args_values)) {
+        func_args_reset(&args);
+      } else {
+        func_args_deinit(&args);
+      }
       return RET_OK;
     }
   }
@@ -464,12 +628,17 @@ static ret_t fscript_exec_ext_func(fscript_t* fscript, fscript_func_call_t* iter
   value_set_int(result, 0);
   fscript->curr = iter;
   ret = iter->func(fscript, &args, result);
-  func_args_deinit(&args);
+
+  if (iter->args.size <= ARRAY_SIZE(args_values)) {
+    func_args_reset(&args);
+  } else {
+    func_args_deinit(&args);
+  }
 
   return ret;
 }
 
-static ret_t fscript_exec_func(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
+ret_t fscript_exec_func_default(fscript_t* fscript, fscript_func_call_t* iter, value_t* result) {
   fscript->curr = iter;
   result->type = VALUE_TYPE_INVALID;
   if (fscript_exec_core_func(fscript, iter, result) == RET_NOT_FOUND) {
@@ -483,17 +652,25 @@ ret_t fscript_exec(fscript_t* fscript, value_t* result) {
   fscript_func_call_t* iter = NULL;
   return_value_if_fail(fscript != NULL, RET_FAIL);
 
+  if (s_hooks != NULL && s_hooks->before_exec != NULL) {
+    s_hooks->before_exec(fscript);
+  }
+
   value_set_str(result, NULL);
   iter = fscript->first;
   while (iter != NULL) {
-    return_value_if_fail(iter->func != NULL, RET_FAIL);
+    break_if_fail(iter->func != NULL);
     value_reset(result);
-    return_value_if_fail(fscript_exec_func(fscript, iter, result) == RET_OK, RET_FAIL);
+    break_if_fail(fscript_exec_func(fscript, NULL, iter, result) == RET_OK);
     if (fscript->returned) {
       fscript->returned = FALSE;
       break;
     }
     iter = iter->next;
+  }
+
+  if (s_hooks != NULL && s_hooks->after_exec != NULL) {
+    s_hooks->after_exec(fscript);
   }
 
   return RET_OK;
@@ -506,28 +683,37 @@ static ret_t on_free_func_def(void* ctx, const void* data) {
   return RET_OK;
 }
 
-ret_t fscript_destroy(fscript_t* fscript) {
-  uint32_t i = 0;
+static ret_t fscript_reset(fscript_t* fscript) {
   return_value_if_fail(fscript != NULL, RET_FAIL);
 
-  str_reset(&(fscript->str));
-  OBJECT_UNREF(fscript->locals);
-  if (fscript->funcs_def != NULL) {
-    object_foreach_prop(fscript->funcs_def, on_free_func_def, NULL);
+  if (s_hooks != NULL && s_hooks->on_deinit != NULL) {
+    s_hooks->on_deinit(fscript);
   }
-  OBJECT_UNREF(fscript->funcs_def);
+
+  str_reset(&(fscript->str));
+  TK_OBJECT_UNREF(fscript->locals);
+  if (fscript->funcs_def != NULL) {
+    tk_object_foreach_prop(fscript->funcs_def, on_free_func_def, NULL);
+  }
+  TK_OBJECT_UNREF(fscript->funcs_def);
   TKMEM_FREE(fscript->error_message);
   fscript_func_call_destroy(fscript->first);
-  for (i = 0; i < ARRAY_SIZE(fscript->fast_vars); i++) {
-    value_reset(fscript->fast_vars + i);
-  }
+  TKMEM_FREE(fscript->code_id);
   memset(fscript, 0x00, sizeof(fscript_t));
+
+  return RET_OK;
+}
+
+ret_t fscript_destroy(fscript_t* fscript) {
+  return_value_if_fail(fscript != NULL, RET_FAIL);
+  fscript_reset(fscript);
+
   TKMEM_FREE(fscript);
 
   return RET_OK;
 }
 
-static ret_t fscript_parser_init(fscript_parser_t* parser, object_t* obj, const char* str,
+static ret_t fscript_parser_init(fscript_parser_t* parser, tk_object_t* obj, const char* str,
                                  fscript_parser_error_t* error) {
   memset(parser, 0x00, sizeof(fscript_parser_t));
 
@@ -604,11 +790,31 @@ static ret_t fscript_parser_skip_seperators(fscript_parser_t* parser) {
   return RET_OK;
 }
 
+#define STR_CODE_ID_START "code_id(\""
+#define STR_CODE_ID_END "\")"
+
 static ret_t fscript_parser_skip_line_comment(fscript_parser_t* parser) {
   char c = '\0';
+  str_t* str = &(parser->temp);
+  str_clear(str);
   do {
     c = fscript_parser_get_char(parser);
+    str_append_char(str, c);
   } while (c != '\0' && c != '\r' && c != '\n');
+
+  if (str->size > 64) {
+    const char* end = NULL;
+    const char* start = strstr(str->str, STR_CODE_ID_START);
+    if (start != NULL) {
+      start += strlen(STR_CODE_ID_START);
+      end = strstr(start, STR_CODE_ID_END);
+      if (end != NULL) {
+        TKMEM_FREE(parser->code_id);
+        parser->code_id = tk_strndup(start, end - start);
+        log_debug("code_id:%s\n", parser->code_id);
+      }
+    }
+  }
 
   return RET_OK;
 }
@@ -972,7 +1178,7 @@ static ret_t token_to_value(token_t* t, value_t* v) {
       value_set_bool(v, FALSE);
     } else {
       value_dup_str_with_len(v, t->token, t->size);
-      v->type = VALUE_TYPE_JSCRIPT_ID;
+      v->type = VALUE_TYPE_FSCRIPT_ID;
     }
   } else {
     return RET_FAIL;
@@ -981,7 +1187,7 @@ static ret_t token_to_value(token_t* t, value_t* v) {
   return RET_OK;
 }
 
-ret_t fscript_eval(object_t* obj, const char* script, value_t* result) {
+ret_t fscript_eval(tk_object_t* obj, const char* script, value_t* result) {
   value_t v;
   ret_t ret = RET_OK;
   fscript_t* fscript = fscript_create(obj, script);
@@ -1016,6 +1222,7 @@ static ret_t fexpr_parse_block(fscript_parser_t* parser, fscript_func_call_t* ac
 static ret_t fexpr_parse_function(fscript_parser_t* parser, value_t* result);
 
 static ret_t fexpr_parse_if(fscript_parser_t* parser, fscript_func_call_t* acall) {
+  uint32_t i = 0;
   token_t* t = NULL;
   fexpr_parse_block(parser, acall);
   t = fscript_parser_get_token(parser);
@@ -1024,9 +1231,15 @@ static ret_t fexpr_parse_if(fscript_parser_t* parser, fscript_func_call_t* acall
     t = fscript_parser_get_token(parser);
     if (t != NULL && t->type == TOKEN_FUNC && tk_str_eq(t->token, "if")) {
       value_t result;
+      fscript_func_call_t* elseif = NULL;
       fscript_parser_unget_token(parser);
-      fexpr_parse_function(parser, &result);
-      func_args_push(&(acall->args), &result);
+      return_value_if_fail(fexpr_parse_function(parser, &result) == RET_OK, RET_FAIL);
+      elseif = value_func(&result);
+      for (i = 0; i < elseif->args.size; i++) {
+        func_args_push(&(acall->args), elseif->args.args + i);
+      }
+      elseif->args.size = 0;
+      fscript_func_call_destroy(elseif);
       return RET_OK;
     } else {
       fscript_parser_unget_token(parser);
@@ -1037,10 +1250,6 @@ static ret_t fexpr_parse_if(fscript_parser_t* parser, fscript_func_call_t* acall
     fscript_parser_unget_token(parser);
     return RET_OK;
   }
-}
-
-static ret_t fexpr_parse_while(fscript_parser_t* parser, fscript_func_call_t* acall) {
-  return fexpr_parse_block(parser, acall);
 }
 
 static ret_t fexpr_parse_function(fscript_parser_t* parser, value_t* result) {
@@ -1082,16 +1291,34 @@ static ret_t fexpr_parse_function(fscript_parser_t* parser, value_t* result) {
       break;
     }
     fscript_parser_unget_token(parser);
-    fscript_parser_expect_token(parser, TOKEN_COMMA, "expect \",\"");
+    if (acall->func == func_for) {
+      fscript_parser_expect_token(parser, TOKEN_SEMICOLON, "expect \";\"");
+    } else {
+      fscript_parser_expect_token(parser, TOKEN_COMMA, "expect \",\"");
+    }
   } while (TRUE);
 
   if (acall->func == func_if && acall->args.size == 1) {
     if (fscript_parser_expect_token(parser, TOKEN_LBRACKET, "expect \"{\"") == RET_OK) {
       fexpr_parse_if(parser, acall);
     }
-  } else if (acall->func == func_while && acall->args.size == 1) {
+  } else if ((acall->func == func_while || acall->func == func_until ||
+              acall->func == func_repeat_times) &&
+             acall->args.size == 1) {
     if (fscript_parser_expect_token(parser, TOKEN_LBRACKET, "expect \"{\"") == RET_OK) {
-      fexpr_parse_while(parser, acall);
+      fexpr_parse_block(parser, acall);
+    }
+  } else if (acall->func == func_for && acall->args.size == 3) {
+    if (fscript_parser_expect_token(parser, TOKEN_LBRACKET, "expect \"{\"") == RET_OK) {
+      fexpr_parse_block(parser, acall);
+    }
+  } else if (acall->func == func_for_in && acall->args.size == 2) {
+    if (fscript_parser_expect_token(parser, TOKEN_LBRACKET, "expect \"{\"") == RET_OK) {
+      fexpr_parse_block(parser, acall);
+    }
+  } else if (acall->func == func_repeat && acall->args.size == 4) {
+    if (fscript_parser_expect_token(parser, TOKEN_LBRACKET, "expect \"{\"") == RET_OK) {
+      fexpr_parse_block(parser, acall);
     }
   }
 
@@ -1349,7 +1576,13 @@ static ret_t fexpr_parse(fscript_parser_t* parser, value_t* result) {
   value_set_int(result, 0);
 
   t = fscript_parser_get_token_ex(parser, TRUE);
-  if (t != NULL && t->type == TOKEN_VAR) {
+  if (t == NULL || t->type == TOKEN_RBRACKET || t->type == TOKEN_SEMICOLON) {
+    value_reset(result);
+    fscript_parser_unget_token(parser);
+    return RET_OK;
+  }
+
+  if (t->type == TOKEN_VAR) {
     is_local = TRUE;
   } else {
     fscript_parser_unget_token(parser);
@@ -1373,25 +1606,32 @@ static ret_t fexpr_parse(fscript_parser_t* parser, value_t* result) {
   return RET_OK;
 }
 
-fscript_t* fscript_create_impl(fscript_parser_t* parser) {
-  fscript_t* fscript = TKMEM_ZALLOC(fscript_t);
+static fscript_t* fscript_init_with_parser(fscript_t* fscript, fscript_parser_t* parser) {
+  fscript = fscript != NULL ? fscript : TKMEM_ZALLOC(fscript_t);
   return_value_if_fail(fscript != NULL, NULL);
   fscript->str = parser->temp;
   fscript->obj = parser->obj;
   fscript->first = parser->first;
   fscript->funcs_def = parser->funcs_def;
+  fscript->code_id = parser->code_id;
+  fscript->lines = parser->row + 1;
+
+  if (s_hooks != NULL && s_hooks->on_init != NULL) {
+    s_hooks->on_init(fscript, parser->str);
+  }
 
   parser->obj = NULL;
   parser->first = NULL;
   parser->temp.str = NULL;
   parser->funcs_def = NULL;
+  parser->code_id = NULL;
 
   return fscript;
 }
 
 static ret_t func_function(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   ret_t ret = RET_OK;
-  object_t* saved_locals = fscript->locals;
+  tk_object_t* saved_locals = fscript->locals;
   fscript_function_def_t* func_def = (fscript_function_def_t*)(fscript->curr->ctx);
   fscript_func_call_t* func = func_def->body;
 
@@ -1404,13 +1644,13 @@ static ret_t func_function(fscript_t* fscript, fscript_args_t* args, value_t* re
     for (i = 0; i < n; i++) {
       const value_t* value = args->args + i;
       const char* name = (const char*)(func_def->params.elms[i]);
-      object_set_prop(fscript->locals, name, value);
+      tk_object_set_prop(fscript->locals, name, value);
     }
   }
 
-  ret = fscript_exec_func(fscript, func, result);
+  ret = fscript_exec_func(fscript, func_def->name, func, result);
 
-  OBJECT_UNREF(fscript->locals);
+  TK_OBJECT_UNREF(fscript->locals);
   fscript->locals = saved_locals;
   fscript->returned = FALSE;
 
@@ -1431,15 +1671,15 @@ static ret_t fscript_parse_function_def(fscript_parser_t* parser, fscript_func_c
   if (parser->funcs_def == NULL) {
     parser->funcs_def = object_default_create();
   }
-  if (object_get_prop_pointer(parser->funcs_def, func_name) != NULL) {
+  if (tk_object_get_prop_pointer(parser->funcs_def, func_name) != NULL) {
     return fscript_parser_set_error(parser, "duplicate function\n");
   }
   statements = fscript_func_call_create(parser, "func", 4);
   return_value_if_fail(statements != NULL, RET_OOM);
 
-  func_def = fscript_function_def_create(statements);
+  func_def = fscript_function_def_create(func_name, statements);
   return_value_if_fail(func_def != NULL, RET_OOM);
-  object_set_prop_pointer(parser->funcs_def, func_name, func_def);
+  tk_object_set_prop_pointer(parser->funcs_def, func_name, func_def);
 
   while (TRUE) {
     t = fscript_parser_get_token(parser);
@@ -1476,7 +1716,9 @@ static ret_t fscript_parse_statements(fscript_parser_t* parser, fscript_func_cal
     value_set_int(&v, 0);
     ret = fexpr_parse(parser, &v);
     if (ret == RET_OK) {
-      func_args_push(args, &v);
+      if (v.type != VALUE_TYPE_INVALID) {
+        func_args_push(args, &v);
+      }
       t = fscript_parser_get_token(parser);
       if (t == NULL) {
         break;
@@ -1492,7 +1734,7 @@ static ret_t fscript_parse_statements(fscript_parser_t* parser, fscript_func_cal
         return fscript_parser_set_error(parser, "unexpected token\n");
       }
     } else {
-      if (v.type == VALUE_TYPE_JSCRIPT_FUNC) {
+      if (v.type == VALUE_TYPE_FSCRIPT_FUNC) {
         fscript_func_call_destroy(value_func(&v));
       } else {
         value_reset(&v);
@@ -1537,7 +1779,7 @@ ret_t fscript_parser_error_deinit(fscript_parser_error_t* error) {
   return RET_OK;
 }
 
-ret_t fscript_syntax_check(object_t* obj, const char* script, fscript_parser_error_t* error) {
+ret_t fscript_syntax_check(tk_object_t* obj, const char* script, fscript_parser_error_t* error) {
   ret_t ret = RET_OK;
   fscript_parser_t parser;
   return_value_if_fail(obj != NULL && script != NULL && error != NULL, RET_BAD_PARAMS);
@@ -1551,19 +1793,20 @@ ret_t fscript_syntax_check(object_t* obj, const char* script, fscript_parser_err
   return ret;
 }
 
-fscript_t* fscript_create(object_t* obj, const char* expr) {
+static fscript_t* fscript_load(fscript_t* fscript, tk_object_t* obj, const char* expr,
+                               bool_t keep_func_name) {
   ret_t ret = RET_OK;
   fscript_parser_t parser;
-  fscript_t* fscript = NULL;
   fscript_parser_error_t error;
   return_value_if_fail(expr != NULL, NULL);
 
   fscript_parser_error_init(&error);
   fscript_parser_init(&parser, obj, expr, &error);
+  parser.keep_func_name = keep_func_name;
   parser.first = fscript_func_call_create(&parser, "expr", 4);
   ret = fscript_parse_all(&parser, parser.first);
   if (ret == RET_OK) {
-    fscript = fscript_create_impl(&parser);
+    fscript = fscript_init_with_parser(fscript, &parser);
     fscript_parser_deinit(&parser);
   } else {
     log_warn("parser error:%s\n", expr);
@@ -1574,15 +1817,32 @@ fscript_t* fscript_create(object_t* obj, const char* expr) {
   return fscript;
 }
 
+ret_t fscript_reload(fscript_t* fscript, const char* expr) {
+  tk_object_t* obj = NULL;
+  return_value_if_fail(fscript != NULL && fscript->obj != NULL && expr != NULL, RET_BAD_PARAMS);
+  obj = fscript->obj;
+  fscript_reset(fscript);
+
+  return fscript_load(fscript, obj, expr, FALSE) != NULL ? RET_OK : RET_FAIL;
+}
+
+fscript_t* fscript_create_ex(tk_object_t* obj, const char* expr, bool_t keep_func_name) {
+  return fscript_load(NULL, obj, expr, keep_func_name);
+}
+
+fscript_t* fscript_create(tk_object_t* obj, const char* expr) {
+  return fscript_create_ex(obj, expr, FALSE);
+}
+
 /*functions*/
 static ret_t func_get_last_error(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   if (fscript->error_code != RET_OK) {
-    object_t* obj = object_default_create();
+    tk_object_t* obj = object_default_create();
     return_value_if_fail(obj != NULL, RET_OOM);
-    object_set_prop_int(obj, "col", fscript->error_col);
-    object_set_prop_int(obj, "line", fscript->error_row);
-    object_set_prop_int(obj, "code", fscript->error_code);
-    object_set_prop_str(obj, "message", fscript->error_message);
+    tk_object_set_prop_int(obj, "col", fscript->error_col);
+    tk_object_set_prop_int(obj, "line", fscript->error_row);
+    tk_object_set_prop_int(obj, "code", fscript->error_code);
+    tk_object_set_prop_str(obj, "message", fscript->error_message);
     value_set_object(result, obj);
     result->free_handle = TRUE;
   } else {
@@ -1703,7 +1963,7 @@ static ret_t func_f32(fscript_t* fscript, fscript_args_t* args, value_t* result)
   return RET_OK;
 }
 
-static ret_t func_float(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+static ret_t func_double(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
   value_set_double(result, value_double(args->args));
   return RET_OK;
@@ -1805,7 +2065,7 @@ static ret_t func_set_local(fscript_t* fscript, fscript_args_t* args, value_t* r
   if (fscript->locals == NULL) {
     fscript->locals = object_default_create();
   }
-  value_set_bool(result, object_set_prop(fscript->locals, name, args->args + 1) == RET_OK);
+  value_set_bool(result, tk_object_set_prop(fscript->locals, name, args->args + 1) == RET_OK);
 
   return RET_OK;
 }
@@ -1843,13 +2103,17 @@ static ret_t func_expr(fscript_t* fscript, fscript_args_t* args, value_t* result
 
 static ret_t func_print(fscript_t* fscript, fscript_args_t* args, value_t* result) {
   uint32_t i = 0;
+  char buff[64];
+
   value_set_bool(result, TRUE);
   for (i = 0; i < args->size; i++) {
-    char buff[64];
     log_info("%s ", value_str_ex(args->args + i, buff, sizeof(buff) - 1));
-    (void)buff;
   }
   log_info("\n");
+
+  if (fscript->print != NULL) {
+    return fscript->print(fscript, args, result);
+  }
 
   return RET_OK;
 }
@@ -2132,8 +2396,8 @@ static ret_t func_len(fscript_t* fscript, fscript_args_t* args, value_t* result)
   FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
 
   if (args->args->type == VALUE_TYPE_OBJECT) {
-    object_t* obj = value_object(args->args);
-    value_set_uint32(result, object_get_prop_int32(obj, "size", 0));
+    tk_object_t* obj = value_object(args->args);
+    value_set_uint32(result, tk_object_get_prop_int32(obj, "size", 0));
   } else {
     str = value_str_ex(args->args, buff, sizeof(buff) - 1);
     value_set_uint32(result, tk_strlen(str));
@@ -2243,28 +2507,30 @@ static ret_t func_exec(fscript_t* fscript, fscript_args_t* args, value_t* result
   FSCRIPT_FUNC_CHECK(args->size == 2, RET_BAD_PARAMS);
   cmd = value_str(args->args);
   cmd_args = value_str_ex(args->args + 1, buff, sizeof(buff) - 1);
-  value_set_bool(result, object_exec(fscript->obj, cmd, cmd_args) == RET_OK);
+  value_set_bool(result, tk_object_exec(fscript->obj, cmd, cmd_args) == RET_OK);
   return RET_OK;
 }
 
 static ret_t func_unset(fscript_t* fscript, fscript_args_t* args, value_t* result) {
-  value_t* var = NULL;
+  value_t v;
   const char* name = NULL;
   FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
   name = value_str(args->args);
   return_value_if_fail(name != NULL, RET_BAD_PARAMS);
 
-  var = fscript_get_fast_var(fscript, name);
-  if (var != NULL) {
-    value_reset(var);
+  if (fscript->locals != NULL && tk_object_get_prop(fscript->locals, name, &v) == RET_OK) {
+    tk_object_remove_prop(fscript->locals, name);
   } else {
-    value_t v;
-    if (fscript->locals != NULL && object_get_prop(fscript->locals, name, &v) == RET_OK) {
-      object_remove_prop(fscript->locals, name);
-    } else {
-      object_remove_prop(fscript->obj, name);
-    }
+    tk_object_remove_prop(fscript->obj, name);
   }
+  value_set_bool(result, TRUE);
+
+  return RET_OK;
+}
+
+static ret_t func_sleep_ms(fscript_t* fscript, fscript_args_t* args, value_t* result) {
+  FSCRIPT_FUNC_CHECK(args->size == 1, RET_BAD_PARAMS);
+  sleep_ms(value_uint32(args->args));
   value_set_bool(result, TRUE);
 
   return RET_OK;
@@ -2276,89 +2542,95 @@ typedef struct _func_entry_t {
   uint32_t max_args_nr;
 } func_entry_t;
 
-static const func_entry_t s_builtin_funcs[] = {
-    {"func", func_function_def, 4},
-    {"return", func_return, 1},
-    {"print", func_print, 4},
-    {"expr", func_expr, 4},
-    {"=", func_set, 2},
-    {"get", func_get, 1},
-    {"set", func_set, 2},
-    {"set_local", func_set_local, 2},
-    {"max", func_max, 2},
-    {"min", func_min, 2},
-    {"==", func_eq, 2},
-    {"!=", func_not_eq, 2},
-    {">=", func_ge, 2},
-    {">", func_great, 2},
-    {"<=", func_le, 2},
-    {"<", func_less, 2},
-    {"!", func_not, 1},
-    {"minus", func_minus, 1},
-    {"||", func_or, 2},
-    {"and", func_and, 2},
-    {"exec", func_exec, 2},
-    {"join", func_join, 8},
-    {"one_of", func_one_of, 3},
-    {"if", func_if, 3},
-    {"while", func_while, 10},
-    {"int", func_int, 1},
-    {"i8", func_i8, 1},
-    {"i16", func_i16, 1},
-    {"i32", func_i32, 1},
-    {"i64", func_i64, 1},
-    {"u8", func_u8, 1},
-    {"u16", func_u16, 1},
-    {"u32", func_u32, 1},
-    {"u64", func_u64, 1},
-    {"f32", func_f32, 1},
-    {"float", func_float, 1},
-    {"number", func_float, 1},
-    {"iformat", func_iformat, 2},
-    {"fformat", func_fformat, 2},
-    {"unset", func_unset, 1},
-    {"str", func_str, 1},
-    {"string", func_str, 1},
-    {"sub", func_sub, 2},
-    {"assert", func_assert, 2},
-    {"substr", func_substr, 3},
-    {"has_error", func_has_error, 0},
-    {"get_last_error", func_get_last_error, 0},
-    {"clear_error", func_clear_error, 0},
-    {"sum", func_sum, 8},
-    {"tolower", func_tolower, 1},
-    {"toupper", func_toupper, 1},
-    {"eval", func_eval, 1},
-    {"trim", func_trim, 1},
-    {"&&", func_and, 2},
-    {"abs", func_abs, 1},
-    {"round", func_round, 1},
-    {"floor", func_floor, 1},
-    {"ceil", func_ceil, 1},
-    {"clamp", func_clamp, 3},
-    {"contains", func_contains, 2},
-    {"div", func_div, 2},
-    {"eq", func_eq, 2},
-    {"ge", func_ge, 2},
-    {"great", func_great, 2},
-    {"le", func_le, 2},
-    {"len", func_len, 1},
-    {"strlen", func_len, 1},
-    {"less", func_less, 2},
-    {"mul", func_mul, 2},
-    {"#", func_noop, 0},
-    {"noop", func_noop, 0},
-    {"seq", func_noop, 4},
-    {"not", func_not, 1},
-    {"or", func_or, 2},
-    {"random", func_random, 2},
-    {"replace", func_replace, 3},
-    {"/", func_div, 2},
-    {"%", func_mod, 2},
-    {"*", func_mul, 2},
-    {"-", func_sub, 2},
-    {"+", func_sum, 8},
-};
+static const func_entry_t s_builtin_funcs[] = {{"func", func_function_def, 4},
+                                               {"return", func_return, 1},
+                                               {"print", func_print, 4},
+                                               {"expr", func_expr, 4},
+                                               {"=", func_set, 2},
+                                               {"get", func_get, 1},
+                                               {"set", func_set, 2},
+                                               {"set_local", func_set_local, 2},
+                                               {"max", func_max, 2},
+                                               {"min", func_min, 2},
+                                               {"==", func_eq, 2},
+                                               {"!=", func_not_eq, 2},
+                                               {">=", func_ge, 2},
+                                               {">", func_great, 2},
+                                               {"<=", func_le, 2},
+                                               {"<", func_less, 2},
+                                               {"!", func_not, 1},
+                                               {"minus", func_minus, 1},
+                                               {"||", func_or, 2},
+                                               {"and", func_and, 2},
+                                               {"exec", func_exec, 2},
+                                               {"join", func_join, 8},
+                                               {"one_of", func_one_of, 3},
+                                               {"if", func_if, 3},
+                                               {"while", func_while, 10},
+                                               {"until", func_until, 10},
+                                               {"repeat", func_repeat, 10},
+                                               {"for", func_for, 10},
+                                               {"for_in", func_for_in, 10},
+                                               {"repeat_times", func_repeat_times, 10},
+                                               {"int", func_int, 1},
+                                               {"i8", func_i8, 1},
+                                               {"i16", func_i16, 1},
+                                               {"i32", func_i32, 1},
+                                               {"i64", func_i64, 1},
+                                               {"u8", func_u8, 1},
+                                               {"u16", func_u16, 1},
+                                               {"u32", func_u32, 1},
+                                               {"u64", func_u64, 1},
+                                               {"f32", func_f32, 1},
+                                               {"f64", func_double, 1},
+                                               {"float", func_f32, 1},
+                                               {"number", func_double, 1},
+                                               {"double", func_double, 1},
+                                               {"iformat", func_iformat, 2},
+                                               {"fformat", func_fformat, 2},
+                                               {"unset", func_unset, 1},
+                                               {"str", func_str, 1},
+                                               {"string", func_str, 1},
+                                               {"sub", func_sub, 2},
+                                               {"assert", func_assert, 2},
+                                               {"substr", func_substr, 3},
+                                               {"has_error", func_has_error, 0},
+                                               {"get_last_error", func_get_last_error, 0},
+                                               {"clear_error", func_clear_error, 0},
+                                               {"sum", func_sum, 8},
+                                               {"tolower", func_tolower, 1},
+                                               {"toupper", func_toupper, 1},
+                                               {"eval", func_eval, 1},
+                                               {"trim", func_trim, 1},
+                                               {"&&", func_and, 2},
+                                               {"abs", func_abs, 1},
+                                               {"round", func_round, 1},
+                                               {"floor", func_floor, 1},
+                                               {"ceil", func_ceil, 1},
+                                               {"clamp", func_clamp, 3},
+                                               {"contains", func_contains, 2},
+                                               {"div", func_div, 2},
+                                               {"eq", func_eq, 2},
+                                               {"ge", func_ge, 2},
+                                               {"great", func_great, 2},
+                                               {"le", func_le, 2},
+                                               {"len", func_len, 1},
+                                               {"strlen", func_len, 1},
+                                               {"less", func_less, 2},
+                                               {"mul", func_mul, 2},
+                                               {"#", func_noop, 0},
+                                               {"noop", func_noop, 0},
+                                               {"seq", func_noop, 4},
+                                               {"not", func_not, 1},
+                                               {"or", func_or, 2},
+                                               {"random", func_random, 2},
+                                               {"replace", func_replace, 3},
+                                               {"/", func_div, 2},
+                                               {"%", func_mod, 2},
+                                               {"*", func_mul, 2},
+                                               {"-", func_sub, 2},
+                                               {"+", func_sum, 8},
+                                               {"sleep_ms", func_sleep_ms, 1}};
 
 static general_factory_t* s_global_funcs;
 static fscript_func_call_t* fscript_func_call_create(fscript_parser_t* parser, const char* name,
@@ -2367,8 +2639,19 @@ static fscript_func_call_t* fscript_func_call_create(fscript_parser_t* parser, c
   fscript_func_t func = NULL;
   char func_name[TK_NAME_LEN + 1];
   char full_func_name[2 * TK_NAME_LEN + 1];
-  fscript_func_call_t* call = TKMEM_ZALLOC(fscript_func_call_t);
+  uint32_t mem_size = sizeof(fscript_func_call_t);
+  fscript_func_call_t* call = NULL;
+  if (parser->keep_func_name) {
+    mem_size += size + 1;
+  }
+  call = TKMEM_ALLOC(mem_size);
   return_value_if_fail(call != NULL, NULL);
+  memset(call, 0x00, mem_size);
+
+  if (parser->keep_func_name) {
+    char* p = (char*)call + sizeof(fscript_func_call_t);
+    memcpy(p, name, size);
+  }
 
   call->row = parser->row;
   call->col = parser->col;
@@ -2389,12 +2672,12 @@ static fscript_func_call_t* fscript_func_call_create(fscript_parser_t* parser, c
   if (func == NULL) {
     tk_snprintf(full_func_name, sizeof(full_func_name) - 1, "%s%s", STR_FSCRIPT_FUNCTION_PREFIX,
                 func_name);
-    func = (fscript_func_t)object_get_prop_pointer(parser->obj, full_func_name);
+    func = (fscript_func_t)tk_object_get_prop_pointer(parser->obj, full_func_name);
   }
 
   if (func == NULL) {
     value_t v;
-    if (object_get_prop(parser->funcs_def, func_name, &v) == RET_OK) {
+    if (tk_object_get_prop(parser->funcs_def, func_name, &v) == RET_OK) {
       func = func_function;
       call->ctx = value_pointer(&v);
     }
@@ -2411,11 +2694,24 @@ static fscript_func_call_t* fscript_func_call_create(fscript_parser_t* parser, c
   return call;
 }
 
+static tk_object_t* s_global_obj = NULL;
+
+tk_object_t* fscript_get_global_object(void) {
+  return s_global_obj;
+}
+
 ret_t fscript_global_init(void) {
+  tk_object_t* obj = object_default_create_ex(FALSE);
+  return_value_if_fail(obj != NULL, RET_BAD_PARAMS);
+
+  s_global_obj = object_locker_create(obj);
+  TK_OBJECT_UNREF(obj);
+
   return RET_OK;
 }
 
 ret_t fscript_global_deinit(void) {
+  TK_OBJECT_UNREF(s_global_obj);
   general_factory_destroy(s_global_funcs);
   s_global_funcs = NULL;
   return RET_OK;
@@ -2442,13 +2738,13 @@ ret_t fscript_register_func(const char* name, fscript_func_t func) {
 
 double tk_expr_eval(const char* expr) {
   value_t v;
-  object_t* obj = NULL;
+  tk_object_t* obj = NULL;
   value_set_double(&v, 0);
   return_value_if_fail(expr != NULL, 0);
 
   obj = object_default_create();
   fscript_eval(obj, expr, &v);
-  OBJECT_UNREF(obj);
+  TK_OBJECT_UNREF(obj);
 
   return value_double(&v);
 }

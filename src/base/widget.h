@@ -509,11 +509,11 @@ struct _widget_t {
    */
   self_layouter_t* self_layout;
   /**
-   * @property {object_t*} custom_props
+   * @property {tk_object_t*} custom_props
    * @annotation ["readable"]
    * 自定义属性。
    */
-  object_t* custom_props;
+  tk_object_t* custom_props;
 
   /**
    * @property {widget_vtable_t} vt
@@ -792,6 +792,16 @@ ret_t widget_back_to_home(widget_t* widget);
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t widget_move(widget_t* widget, xy_t x, xy_t y);
+
+/**
+ * @method widget_move_to_center
+ * 移动控件到父控件中间。
+ * @annotation ["scriptable"]
+ * @param {widget_t*} widget 控件对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t widget_move_to_center(widget_t* widget);
 
 /**
  * @method widget_resize
@@ -2511,7 +2521,7 @@ ret_t widget_dispatch_to_key_target(widget_t* widget, event_t* e);
  * @param {xy_t} x x坐标。
  * @param {xy_t} y y坐标。
  *
- * @return {widget*} 子控件或NULL。
+ * @return {widget_t*} 子控件或NULL。
  */
 widget_t* widget_find_target(widget_t* widget, xy_t x, xy_t y);
 
@@ -3090,6 +3100,7 @@ ret_t widget_on_pointer_move(widget_t* widget, pointer_event_t* e);
 ret_t widget_on_pointer_up(widget_t* widget, pointer_event_t* e);
 ret_t widget_on_context_menu(widget_t* widget, pointer_event_t* e);
 bool_t widget_is_focusable(widget_t* widget);
+ret_t widget_destroy_sync(widget_t* widget);
 
 #define WIDGET_EXEC_START_ANIMATOR "start_animator"
 #define WIDGET_EXEC_STOP_ANIMATOR "stop_animator"

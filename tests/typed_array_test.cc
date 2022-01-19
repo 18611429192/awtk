@@ -165,7 +165,7 @@ TEST(TypedArray, insert_uint32) {
 TEST(TypedArray, object1) {
   value_t v;
   uint8_t i = 0;
-  object_t* obj = object_typed_array_create(VALUE_TYPE_UINT32, 0);
+  tk_object_t* obj = object_typed_array_create(VALUE_TYPE_UINT32, 0);
   typed_array_t* a = OBJECT_TYPED_ARRAY(obj)->arr;
 
   ASSERT_EQ(a != NULL, true);
@@ -177,9 +177,33 @@ TEST(TypedArray, object1) {
     ASSERT_EQ(value_uint32(&v), (uint32_t)i);
   }
 
-  ASSERT_EQ(object_get_prop_int(obj, "size", 0), (int32_t)i);
-  ASSERT_EQ(object_get_prop_int(obj, "bytes", 0), (int32_t)(i * sizeof(uint32_t)));
-  ASSERT_EQ(object_get_prop_pointer(obj, "data"), (void*)a->data);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "size", 0), (int32_t)i);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "bytes", 0), (int32_t)(i * sizeof(uint32_t)));
+  ASSERT_EQ(tk_object_get_prop_pointer(obj, "data"), (void*)a->data);
 
-  OBJECT_UNREF(obj);
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(TypedArray, object2) {
+  value_t v;
+  uint8_t i = 0;
+  tk_object_t* obj = object_typed_array_create(VALUE_TYPE_UINT32, 0);
+  typed_array_t* a = OBJECT_TYPED_ARRAY(obj)->arr;
+
+  ASSERT_EQ(a != NULL, true);
+  ASSERT_EQ(a->element_size, sizeof(uint32_t));
+  for (i = 0; i < 255; i++) {
+    ASSERT_EQ(a->size, (uint32_t)i);
+    ASSERT_EQ(typed_array_insert(a, 0, value_set_uint32(&v, i)), RET_OK);
+    ASSERT_EQ(typed_array_get(a, 0, &v), RET_OK);
+    ASSERT_EQ(value_uint32(&v), (uint32_t)i);
+  }
+
+  ASSERT_EQ(tk_object_get_prop_int(obj, TK_OBJECT_PROP_SIZE, 0), (int32_t)i);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "[0]", 123), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "[0]", 0), 123);
+  ASSERT_EQ(tk_object_set_prop_int(obj, "[1]", 1234), RET_OK);
+  ASSERT_EQ(tk_object_get_prop_int(obj, "[1]", 0), 1234);
+
+  TK_OBJECT_UNREF(obj);
 }

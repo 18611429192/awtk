@@ -445,7 +445,7 @@ ret_t str_to_float(str_t* str, double* v);
 ret_t str_encode_hex(str_t* str, const uint8_t* data, uint32_t size, const char* format);
 
 /**
- * @method str_encode_hex
+ * @method str_decode_hex
  * 把16进制格式的字符串解码成字符串。
  * @param {str_t*} str str对象。
  * @param {uint8_t*} data 数据缓存区(返回)。
@@ -548,7 +548,7 @@ ret_t str_to_upper(str_t* str);
  *
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
-ret_t str_expand_vars(str_t* str, const char* src, const object_t* obj);
+ret_t str_expand_vars(str_t* str, const char* src, const tk_object_t* obj);
 
 /**
  * @method str_common_prefix
@@ -568,6 +568,25 @@ ret_t str_common_prefix(str_t* str, const char* other);
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t str_reset(str_t* str);
+
+/**
+ * @method str_reverse
+ * 前后颠倒字符串。
+ * @param {str_t*} str str对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t str_reverse(str_t* str);
+
+/**
+ * @method str_count
+ * 统计字串出现的次数。
+ * @param {str_t*} str str对象。
+ * @param {const char*} substr 字串。
+ *
+ * @return {uint32_t} 返回字符串出现的次数。
+ */
+uint32_t str_count(str_t* str, const char* substr);
 
 END_C_DECLS
 
