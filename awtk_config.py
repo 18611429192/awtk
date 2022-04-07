@@ -177,7 +177,8 @@ elif OS_NAME == 'Linux':
 elif OS_NAME == 'Windows':
     OS_PROJECTS = ['3rd/SDL/SConscript']
     OS_LINKFLAGS += '\"' + WIN32_AWTK_RES + '\" '
-
+    COMMON_CCFLAGS = COMMON_CCFLAGS + '-DWIN32'
+	
     if TOOLS_NAME == 'mingw':
         print('mingw')
     else:

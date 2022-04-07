@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  native window sdl
  *
- * Copyright (c) 2019 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2019 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -227,6 +227,8 @@ static ret_t native_window_sdl_gl_make_current(native_window_t* win) {
     sdl->is_init = TRUE;
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+  } else {
+    glClear(GL_STENCIL_BUFFER_BIT);
   }
 #endif /*WITH_GPU_GL*/
   return RET_OK;
