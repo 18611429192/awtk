@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  widget animator interface
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -155,7 +155,9 @@ ret_t widget_animator_start(widget_animator_t* animator) {
   animator->state = ANIMATOR_RUNNING;
   emitter_dispatch(&(animator->emitter), &e);
   if (animator->delay == 0) {
+    widget_invalidate_force(animator->widget, NULL);
     widget_animator_update(animator, 0);
+    widget_invalidate_force(animator->widget, NULL);
   }
 
   return RET_OK;
@@ -171,8 +173,9 @@ ret_t widget_animator_stop(widget_animator_t* animator) {
     animator->reversed = FALSE;
     animator->state = ANIMATOR_STOPPED;
     emitter_dispatch(&(animator->emitter), &e);
+    widget_invalidate_force(animator->widget, NULL);
     widget_animator_update(animator, 0);
-
+    widget_invalidate_force(animator->widget, NULL);
     return RET_OK;
   } else {
     return RET_FAIL;
@@ -194,14 +197,9 @@ ret_t widget_animator_pause(widget_animator_t* animator) {
 }
 
 static ret_t widget_animator_update(widget_animator_t* animator, float_t percent) {
-  ret_t ret = RET_OK;
   return_value_if_fail(animator != NULL && animator->update != NULL, RET_BAD_PARAMS);
 
-  widget_invalidate_force(animator->widget, NULL);
-  ret = animator->update(animator, percent);
-  widget_invalidate_force(animator->widget, NULL);
-
-  return ret;
+  return animator->update(animator, percent);
 }
 
 ret_t widget_animator_set_yoyo(widget_animator_t* animator, uint32_t yoyo_times) {

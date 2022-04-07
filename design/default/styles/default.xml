@@ -120,6 +120,7 @@
     <disable    bg_color="gray" text_color="#d0d0d0" />
     <changed    bg_color="#f0f0f0" text_color="#ee0000" />
     <error      bg_color="#f0f0f0" text_color="red" />
+    <over       bg_color="#e0e0e0"/>
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
     <empty_focus bg_color="#f0f0f0" text_color="#a0a0a0" border_color="black"/>
   </style>
@@ -130,6 +131,7 @@
     <changed    bg_color="#f0f0f0" text_color="#ee0000" />
     <error      bg_color="#f0f0f0" text_color="red" />
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
+    <over       bg_color="#e0e0e0"/>
     <empty_focus bg_color="#f0f0f0" text_color="#a0a0a0" border_color="black"/>
   </style>
   <style name="number" border_color="#a0a0a0"  text_color="black" text_align_h="right">
@@ -137,6 +139,7 @@
     <focused    bg_color="#f0f0f0" border_color="black"/>
     <disable    bg_color="gray" text_color="#d0d0d0" />
     <error      bg_color="#f0f0f0" text_color="red" />
+    <over       bg_color="#e0e0e0"/>
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
     <empty_focus bg_color="#f0f0f0" text_color="#a0a0a0" border_color="black"/>
   </style>
@@ -145,6 +148,7 @@
     <focused    bg_color="#f0f0f0" border_color="black"/>
     <disable    bg_color="gray" text_color="#d0d0d0" />
     <error      bg_color="#f0f0f0" text_color="red" />
+    <over       bg_color="#e0e0e0"/>
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
     <empty_focus bg_color="#f0f0f0" text_color="#a0a0a0" border_color="black"/>
   </style>
@@ -271,6 +275,13 @@
     <normal icon="img_slider_icon"/>
     <pressed icon="img_slider_icon"/>
     <over icon="img_slider_icon"/>
+  </style>
+
+  <style name="photo" bg_color="#a0a0a0" fg_color="blue" round_radius="30">
+    <normal/>
+    <pressed/>
+    <over/>
+    <focused/>
   </style>
 </slider>
 
@@ -509,6 +520,7 @@
     <disable    bg_color="gray" text_color="#d0d0d0" />
     <error      bg_color="#f0f0f0" text_color="red" />
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
+    <over       bg_color="#e0e0e0" text_color="#88ff00" />
   </style>
 </combo_box>
 
@@ -519,6 +531,7 @@
     <disable    bg_color="gray" text_color="#d0d0d0" />
     <error      bg_color="#f0f0f0" text_color="red" />
     <empty      bg_color="#f0f0f0" text_color="#a0a0a0" />
+    <over       bg_color="#e0e0e0" text_color="#88ff00" />
   </style>
 </combo_box_ex>
 
@@ -634,7 +647,9 @@
 
 <line_number>
   <style name="default">
-    <normal text_color="black" bg_color="#d0d0d0" text_align_h="right"/>
+    <normal text_color="black" bg_color="#d0d0d0" highlight_line_bg_color="gold" 
+      active_line_bg_color="green"
+      text_align_h="right"/>
   </style>
 </line_number>
 

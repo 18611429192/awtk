@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  events structs
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -21,6 +21,7 @@
 
 #include "base/events.h"
 #include "tkc/time_now.h"
+#include "base/lcd_orientation_helper.h"
 
 wheel_event_t* wheel_event_cast(event_t* event) {
   return_value_if_fail(event != NULL, NULL);
@@ -93,41 +94,9 @@ window_event_t* window_event_cast(event_t* event) {
 }
 
 ret_t pointer_event_rotate(pointer_event_t* evt, system_info_t* info) {
-  xy_t x = evt->x;
-  xy_t y = evt->y;
   return_value_if_fail(evt != NULL && info != NULL, RET_BAD_PARAMS);
-
-  switch (info->lcd_orientation) {
-    case LCD_ORIENTATION_90: {
-#ifdef WITH_GPU
-      evt->y = info->lcd_w - x - 1;
-      evt->x = y;
-#else
-      evt->y = x;
-      evt->x = info->lcd_h - y - 1;
-#endif
-      break;
-    }
-    case LCD_ORIENTATION_180: {
-      evt->y = info->lcd_h - y - 1;
-      evt->x = info->lcd_w - x - 1;
-      break;
-    }
-    case LCD_ORIENTATION_270: {
-#ifdef WITH_GPU
-      evt->y = x;
-      evt->x = info->lcd_h - y - 1;
-#else
-      evt->y = info->lcd_w - x - 1;
-      evt->x = y;
-#endif
-      break;
-    }
-    default:
-      break;
-  }
-
-  return RET_OK;
+  return lcd_orientation_point_rotate_by_clockwise(&evt->x, &evt->y, info->lcd_orientation,
+                                                   info->lcd_w, info->lcd_h);
 }
 
 event_t* wheel_event_init(wheel_event_t* event, uint32_t type, void* target, int32_t dy) {

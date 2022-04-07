@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  mledit
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -244,6 +244,7 @@ static ret_t mledit_get_prop(widget_t* widget, const char* name, value_t* v) {
     if (margin == 0) {
       margin = mledit->top_margin != 0 ? mledit->top_margin : mledit->margin;
     }
+    value_set_int(v, margin);
     return RET_OK;
   } else if (tk_str_eq(name, WIDGET_PROP_BOTTOM_MARGIN)) {
     uint32_t margin = 0;
@@ -253,6 +254,7 @@ static ret_t mledit_get_prop(widget_t* widget, const char* name, value_t* v) {
     if (margin == 0) {
       margin = mledit->bottom_margin != 0 ? mledit->bottom_margin : mledit->margin;
     }
+    value_set_int(v, margin);
     return RET_OK;
   } else if (tk_str_eq(name, WIDGET_PROP_TIPS)) {
     value_set_str(v, mledit->tips);
@@ -491,6 +493,17 @@ static ret_t mledit_update_caret(const timer_info_t* timer) {
   }
 }
 
+static ret_t mledit_start_update_caret(mledit_t* mledit) {
+#define UPDATE_CARET_TIME 600
+  if (mledit->timer_id == TK_INVALID_ID) {
+    mledit->timer_id = timer_add(mledit_update_caret, WIDGET(mledit), UPDATE_CARET_TIME);
+  } else {
+    timer_reset(mledit->timer_id);
+  }
+  text_edit_set_caret_visible(mledit->model, TRUE);
+  return RET_OK;
+}
+
 static ret_t mledit_update_status(widget_t* widget) {
   mledit_t* mledit = MLEDIT(widget);
   return_value_if_fail(mledit != NULL && widget != NULL, RET_BAD_PARAMS);
@@ -598,6 +611,17 @@ static ret_t mledit_on_event(widget_t* widget, event_t* e) {
   }
 
   switch (type) {
+    case EVT_POINTER_LEAVE: {
+      mledit_update_status(widget);
+      break;
+    }
+    case EVT_POINTER_ENTER:
+      if (widget->text.size == 0) {
+        widget_set_state(widget, WIDGET_STATE_EMPTY_OVER);
+      } else {
+        widget_set_state(widget, WIDGET_STATE_OVER);
+      }
+      break;
     case EVT_POINTER_DOWN: {
       pointer_event_t evt = *(pointer_event_t*)e;
       if (widget_find_target(widget, evt.x, evt.y) == NULL) {
@@ -610,6 +634,7 @@ static ret_t mledit_on_event(widget_t* widget, event_t* e) {
       }
       mledit_update_status(widget);
       widget_invalidate(widget, NULL);
+      mledit_start_update_caret(mledit);
       break;
     }
     case EVT_POINTER_DOWN_ABORT: {
@@ -665,6 +690,7 @@ static ret_t mledit_on_event(widget_t* widget, event_t* e) {
       ret = RET_STOP;
       mledit->is_key_inputing = TRUE;
       widget_invalidate(widget, NULL);
+      mledit_start_update_caret(mledit);
       break;
     }
     case EVT_IM_COMMIT: {
@@ -739,9 +765,7 @@ static ret_t mledit_on_event(widget_t* widget, event_t* e) {
       break;
     }
     case EVT_FOCUS: {
-      if (mledit->timer_id == TK_INVALID_ID) {
-        mledit->timer_id = timer_add(mledit_update_caret, widget, 600);
-      }
+      mledit_start_update_caret(mledit);
 
       if (widget->target == NULL) {
         if (mledit->open_im_when_focused) {

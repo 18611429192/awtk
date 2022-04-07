@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  rect struct and utils functions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -316,6 +316,16 @@ bool_t rect_has_intersect(const rect_t* r1, const rect_t* r2);
  * @return {rectf_t*} 返回rect对象。
  */
 rectf_t* rectf_scale(rectf_t* r, float_t scale);
+
+/**
+ * @method rectf_fix
+ * 确保rectf在指定的大小范围内。
+ *
+ * @param {rectf_t*} r rectf对象。
+ *
+ * @return {rectf_t} 返回修复之后的rect对象。
+ */
+rectf_t rectf_fix(rectf_t* r, wh_t max_w, wh_t max_h);
 
 /**
  * @method rect_to_rectf

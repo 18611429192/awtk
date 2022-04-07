@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  enumerations
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -37,7 +37,18 @@ enum { TYPE_INT = 0, TYPE_COLOR, TYPE_STRING, TYPE_WSTRING, TYPE_BOOL };
  * @class enum_helper
  * @annotation ["fake"]
  */
+
+/**
+ * @method input_type_find
+ *
+ * 获取输入类型值和名称的对应关系。
+ *
+ * @param {const char*} name 输入类型名。
+ *
+ * @return {const key_type_value_t*} 返回输入类型值和名称的对应关系。
+ */
 const key_type_value_t* input_type_find(const char* name);
+
 const key_type_value_t* window_closable_type_find(const char* name);
 const key_type_value_t* align_v_type_find(const char* name);
 const key_type_value_t* align_h_type_find(const char* name);

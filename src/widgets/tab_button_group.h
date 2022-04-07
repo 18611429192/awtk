@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  tab_button_group
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -89,7 +89,7 @@ typedef struct _tab_button_group_t {
    */
 
   /*private*/
-  uint32_t active;
+  int32_t active;
   hscrollable_t* hscrollable;
 } tab_button_group_t;
 

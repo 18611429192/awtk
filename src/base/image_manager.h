@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  image manager
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -36,6 +36,7 @@ typedef struct _bitmap_header_t {
   uint16_t h;
   uint16_t flags;  /*bitmap_flag_t*/
   uint16_t format; /*bitmap_format_t*/
+  uint32_t orientation;
   uint8_t data[4];
 } bitmap_header_t;
 

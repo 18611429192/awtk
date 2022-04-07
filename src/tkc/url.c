@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  URL parser 
  *
- * Copyright (c) 2020 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -142,6 +142,7 @@ static url_t* url_parse(url_t* url, const char* surl) {
               break;
             }
             case '/': {
+              p--;
               state = STATE_PATH;
               break;
             }

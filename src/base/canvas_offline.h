@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  offline canvas.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -38,15 +38,14 @@ BEGIN_C_DECLS
 typedef struct _canvas_offline_t {
   canvas_t base;
   /**
-     * @property {bitmap_t*} bitmap
-     * @annotation ["readable"]
-     * 绑定的离线 bitmap
-     */
+   * @property {bitmap_t*} bitmap
+   * @annotation ["readable"]
+   * 绑定的离线 bitmap
+   */
   bitmap_t* bitmap;
 
   /* private */
-  /* 保存在线的 vg 和 canvas 的裁减区 */
-  rect_t vg_clip_rect;
+  /* 保存在线的 canvas 的裁减区 */
   rect_t canvas_clip_rect;
   /*确保 begin_draw / end_draw 配对使用*/
   int32_t begin_draw;
@@ -59,9 +58,10 @@ typedef struct _canvas_offline_t {
  * 创建一个离线的 canvas
  * 在 opengl 模式下 format 参数只能为 BITMAP_FMT_RGBA8888
  * 在其他模式下，离线 canvas 格式可以为 rgba，bgar，bgr565和rgb565
+ * 旋转方向和 lcd 旋转方向保存一致，旋转方向不同可能会导致 bitmap 的逻辑宽高不同。
  * 
- * @param {uint32_t} w 离线 canvas 的宽。
- * @param {uint32_t} h 离线 canvas 的高。
+ * @param {uint32_t} w 离线 canvas 的物理宽。
+ * @param {uint32_t} h 离线 canvas 的物理高。
  * @param {bitmap_format_t} format 离线 canvas 的格式。
  *
  * @return {canvas_t*} 成功返回 canvas ，失败返回 NULL。
@@ -114,7 +114,6 @@ bitmap_t* canvas_offline_get_bitmap(canvas_t* canvas);
  * @method canvas_offline_bitmap_move_to_new_bitmap
  * 把离线 canvas 的离线 bitmap 移动赋值给新的 bitmap。
  * 移动赋值后原来的离线 canvas 的离线 bitmap 就会被置空。
- * 备注：在移动赋值之前会先调用 canvas_offline_flush_bitmap 把数据回流到内存中。
  *
  * @param {canvas_t*} canvas 离线 canvas 对象。
  * @param {bitmap_t*} bitmap 新的 bitmap 对象。

@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  default window manager
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -29,6 +29,7 @@
 #include "base/dialog.h"
 #include "base/locale_info.h"
 #include "base/system_info.h"
+#include "base/input_method.h"
 #include "base/image_manager.h"
 #include "base/canvas_offline.h"
 #include "base/dirty_rects.inc"
@@ -38,6 +39,8 @@
 static ret_t window_manager_animate_done(widget_t* widget);
 static ret_t window_manager_default_update_fps(widget_t* widget);
 static ret_t window_manager_invalidate_system_bar(widget_t* widget);
+static ret_t window_manager_default_reset_window_animator(widget_t* widget);
+static ret_t window_manager_default_reset_dialog_highlighter(widget_t* widget);
 static ret_t window_manager_default_invalidate(widget_t* widget, const rect_t* r);
 static ret_t window_manager_default_get_client_r(widget_t* widget, rect_t* r);
 static ret_t window_manager_default_do_open_window(widget_t* wm, widget_t* window);
@@ -127,7 +130,6 @@ ret_t window_manager_default_snap_curr_window(widget_t* widget, widget_t* curr_w
   canvas_t* c = NULL;
   rect_t r = {0};
   canvas_t* canvas = NULL;
-
   window_manager_default_t* wm = WINDOW_MANAGER_DEFAULT(widget);
   return_value_if_fail(img != NULL && wm != NULL && curr_win != NULL, RET_BAD_PARAMS);
 
@@ -138,8 +140,9 @@ ret_t window_manager_default_snap_curr_window(widget_t* widget, widget_t* curr_w
   r = rect_init(curr_win->x, curr_win->y, curr_win->w, curr_win->h);
 
   canvas_save(c);
-  canvas = canvas_offline_create(canvas_get_width(c), canvas_get_height(c),
+  canvas = canvas_offline_create(lcd_get_physical_width(c->lcd), lcd_get_physical_height(c->lcd),
                                  lcd_get_desired_bitmap_format(c->lcd));
+
   canvas_offline_begin_draw(canvas);
   canvas_set_clip_rect(canvas, &r);
   ENSURE(widget_on_paint_background(widget, canvas) == RET_OK);
@@ -182,7 +185,6 @@ ret_t window_manager_default_snap_prev_window(widget_t* widget, widget_t* prev_w
   rect_t r = {0};
   canvas_t* c = NULL;
   canvas_t* canvas = NULL;
-
   window_manager_default_t* wm = WINDOW_MANAGER_DEFAULT(widget);
   dialog_highlighter_t* dialog_highlighter = NULL;
   int32_t end = -1, start = -1;
@@ -205,8 +207,9 @@ ret_t window_manager_default_snap_prev_window(widget_t* widget, widget_t* prev_w
   r = rect_init(prev_win->x, prev_win->y, prev_win->w, prev_win->h);
 
   canvas_save(c);
-  canvas = canvas_offline_create(canvas_get_width(c), canvas_get_height(c),
+  canvas = canvas_offline_create(lcd_get_physical_width(c->lcd), lcd_get_physical_height(c->lcd),
                                  lcd_get_desired_bitmap_format(c->lcd));
+
   canvas_offline_begin_draw(canvas);
   canvas_set_clip_rect(canvas, &r);
   ENSURE(widget_on_paint_background(widget, canvas) == RET_OK);
@@ -542,6 +545,15 @@ static ret_t window_manager_default_close_window(widget_t* widget, widget_t* win
   window_manager_prepare_close_window(widget, window);
 
   if (wm->animator) {
+    if (widget_is_keyboard(window)) {
+      input_method_t* im = input_method();
+      widget_t* win = widget_get_window(im->widget);
+      if (win == wm->animator->prev_win && widget_is_normal_window(wm->animator->curr_win)) {
+        /* 如果已经打开下一个窗口后，就直接释放上一个窗口的软键盘，不必播放软键盘的动画 */
+        window_manager_close_window_force(window->parent, window);
+        return RET_OK;
+      }
+    }
     wm->pending_close_window = window;
     return RET_OK;
   }
@@ -1166,10 +1178,16 @@ ret_t window_manager_default_on_event(widget_t* widget, event_t* e) {
 
     ret = lcd_set_orientation(lcd, old_orientation, new_orientation);
     return_value_if_fail(ret == RET_OK, ret);
+#if !defined(WITH_GPU) && defined(WITH_FAST_LCD_PORTRAIT)
+    ENSURE(image_manager_unload_all(widget_get_image_manager(widget)) == RET_OK);
+#endif
     window_manager_default_orientation(widget, w, h, old_orientation, new_orientation);
     e->type = EVT_ORIENTATION_CHANGED;
 
     widget_dispatch(widget, e);
+
+    window_manager_default_reset_window_animator(widget);
+    window_manager_default_reset_dialog_highlighter(widget);
   } else if (e->type == EVT_THEME_CHANGED) {
     window_manager_on_theme_changed(widget);
   } else if (e->type == EVT_TOP_WINDOW_CHANGED) {
@@ -1237,8 +1255,10 @@ static ret_t window_manager_default_layout_not_system_bar(widget_t* widget, widg
       h = client_r.h;
     }
   } else if (widget_is_dialog(window)) {
-    x = (widget->w - window->w) >> 1;
-    y = (widget->h - window->h) >> 1;
+    w = tk_min(widget->w, window->w);
+    h = tk_min(widget->h, window->h);
+    x = (widget->w - w) >> 1;
+    y = (widget->h - h) >> 1;
   } else {
     x = window->x;
     y = window->y;
@@ -1385,6 +1405,37 @@ ret_t window_manager_paint_system_bar(widget_t* widget, canvas_t* c) {
   return RET_OK;
 }
 
+static ret_t window_manager_default_reset_window_animator(widget_t* widget) {
+  window_manager_default_t* wm = WINDOW_MANAGER_DEFAULT(widget);
+#ifndef WITHOUT_WINDOW_ANIMATOR_CACHE
+  if (wm->animator != NULL) {
+    window_animator_t* wa = wm->animator;
+    if (wa->dialog_highlighter == NULL) {
+      bitmap_destroy(&(wa->prev_img));
+    }
+    bitmap_destroy(&(wa->curr_img));
+    window_manager_snap_prev_window(widget, wa->prev_win, &(wa->prev_img));
+    window_manager_snap_curr_window(widget, wa->curr_win, &(wa->curr_img));
+  }
+#endif
+  return RET_OK;
+}
+
+static ret_t window_manager_default_reset_dialog_highlighter(widget_t* widget) {
+  window_manager_default_t* wm = WINDOW_MANAGER_DEFAULT(widget);
+  if (wm->dialog_highlighter != NULL) {
+    bitmap_t img;
+    widget_t* prev = window_manager_find_prev_normal_window(widget);
+
+    memset(&img, 0x00, sizeof(img));
+    if (prev != NULL) {
+      dialog_highlighter_clear_image(wm->dialog_highlighter);
+      window_manager_default_snap_prev_window(widget, prev, &img);
+    }
+  }
+  return RET_OK;
+}
+
 static ret_t window_manager_default_native_window_resized(widget_t* widget, void* handle) {
   uint32_t w = 0;
   uint32_t h = 0;
@@ -1410,27 +1461,8 @@ static ret_t window_manager_default_native_window_resized(widget_t* widget, void
   native_window_clear_dirty_rect(wm->native_window);
   window_manager_default_resize(widget, w, h);
 
-#ifndef WITHOUT_WINDOW_ANIMATOR_CACHE
-  if (wm->animator != NULL) {
-    window_animator_t* wa = wm->animator;
-    if (wa->dialog_highlighter == NULL) {
-      bitmap_destroy(&(wa->prev_img));
-    }
-    bitmap_destroy(&(wa->curr_img));
-    window_manager_snap_prev_window(widget, wa->prev_win, &(wa->prev_img));
-    window_manager_snap_curr_window(widget, wa->curr_win, &(wa->curr_img));
-  }
-#endif
-  if (wm->dialog_highlighter != NULL) {
-    bitmap_t img;
-    widget_t* prev = window_manager_find_prev_normal_window(widget);
-
-    memset(&img, 0x00, sizeof(img));
-    if (prev != NULL) {
-      dialog_highlighter_clear_image(wm->dialog_highlighter);
-      window_manager_default_snap_prev_window(widget, prev, &img);
-    }
-  }
+  window_manager_default_reset_window_animator(widget);
+  window_manager_default_reset_dialog_highlighter(widget);
 
   return RET_OK;
 }

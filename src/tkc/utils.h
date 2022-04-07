@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  utils struct and utils functions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -266,6 +266,7 @@ char* tk_strncpy(char* dst, const char* src, size_t len);
  * @method tk_strncpy_s
  *
  * 将src所指向的字符串复制到dst，最多复制min(dst_len-1, src_len)个字符串，并在[len]位置添加'\0'。
+ * 如果 dst 和 src 的地址对齐的话，效率会比 strncpy 高，如果小于 64 个字节的话，效率是最高的。
  *
  * @param {char*} dst 目标字符串。
  * @param {size_t} dst_len 目标字符串内存长度。
@@ -759,6 +760,21 @@ ret_t tk_qsort(void** array, size_t nr, tk_compare_t cmp);
  */
 bool_t tk_str_is_in_array(const char* str, const char** str_array, uint32_t array_size);
 
+/**
+ * @method tk_memcpy
+ * 
+ * 内存拷贝。
+ * 在地址对齐的情况下并且少于 64 个字节，效率会比 memcpy 要快，否则会退化为 memcpy。
+ *
+ * @param {void*} dst 目标字符串。
+ * @param {const void*} src 源字符串。
+ * @param {uint32_t} len 拷贝长度。
+ *
+ * @return {void*} 返回成功返回 dst 地址，失败返回 NULL。
+ */
+void* tk_memcpy(void* dst, const void* src, uint32_t len);
+
+void* tk_memcpy_by_align_4(void* dst_align_4, const void* src_align_4, uint32_t len);
 const char* tk_normalize_key_name(const char* name, char fixed_name[TK_NAME_LEN + 1]);
 
 static inline int32_t tk_max_int(int32_t a, int32_t b) {
@@ -776,6 +792,24 @@ static inline float tk_max_float(float a, float b) {
 static inline float tk_min_float(float a, float b) {
   return tk_min(a, b);
 }
+
+/**
+ * @method tk_wild_card_match
+ * 
+ * 简单的通配符匹配。*匹配0到多个字符，?匹配1个字符。
+ * 示例：
+ *
+ * ```c
+ * tk_wild_card_match("*c", "abc");
+ * tk_wild_card_match("a?c", "abc");
+ * ```
+ *
+ * @param {const char*} pattern 字符串。
+ * @param {const char*} str 字符串。
+ *
+ * @return {bool_t} 返回TRUE表示匹配，否则表示不匹配。
+ */
+bool_t tk_wild_card_match(const char* pattern, const char* str);
 
 /*public for test*/
 ret_t xml_file_expand(const char* filename, str_t* s, const char* data);

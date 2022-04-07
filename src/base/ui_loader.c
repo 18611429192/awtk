@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  ui_loader interface
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -58,6 +58,22 @@ widget_t* ui_loader_load_widget_with_parent(const char* name, widget_t* parent) 
 
   ui_loader_load(loader, ui->data, ui->size, builder);
   assets_manager_unref(assets_manager(), ui);
+  root = builder->root;
+  ui_builder_destroy(builder);
+
+  return root;
+}
+
+widget_t* ui_loader_load_widget_from_xml(widget_t* parent, const char* xml, uint32_t size) {
+  widget_t* root = NULL;
+  ui_builder_t* builder = NULL;
+  ui_loader_t* loader = xml_ui_loader();
+  return_value_if_fail(xml != NULL, NULL);
+
+  builder = ui_builder_default_create("noname");
+  builder->widget = parent;
+
+  ui_loader_load(loader, (const uint8_t*)xml, size, builder);
   root = builder->root;
   ui_builder_destroy(builder);
 

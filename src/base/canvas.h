@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  canvas provides basic drawings functions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -162,6 +162,10 @@ struct _canvas_t {
   /*private*/
   /*确保begin_frame/end_frame配对使用*/
   bool_t began_frame;
+
+  uint32_t last_text_length;
+  uint32_t last_text_nr;
+  wchar_t* last_text_str;
 
   canvas_end_frame_t end_frame;
   canvas_begin_frame_t begin_frame;
@@ -483,6 +487,17 @@ ret_t canvas_stroke_rect(canvas_t* c, xy_t x, xy_t y, wh_t w, wh_t h);
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t canvas_set_font(canvas_t* c, const char* name, font_size_t size);
+
+/**
+ * @method canvas_reset_font
+ * 释放canvas中字体相关的资源。
+ *
+ * @annotation ["scriptable"]
+ * @param {canvas_t*} c canvas对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t canvas_reset_font(canvas_t* c);
 
 /**
  * @method canvas_set_text_align

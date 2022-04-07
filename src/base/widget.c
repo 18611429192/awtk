@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  basic class of all widget
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -62,7 +62,11 @@ typedef widget_t* (*widget_find_wanted_focus_widget_t)(widget_t* widget, darray_
 static ret_t widget_move_focus(widget_t* widget, widget_find_wanted_focus_widget_t find);
 
 static ret_t widget_set_x(widget_t* widget, xy_t x, bool_t update_layout) {
-  widget->x = x;
+  if (widget->x != x) {
+    widget_invalidate_force(widget, NULL);
+    widget->x = x;
+    widget_invalidate_force(widget, NULL);
+  }
   if (update_layout && widget->self_layout != NULL) {
     self_layouter_set_param_str(widget->self_layout, "x", "n");
   }
@@ -70,7 +74,11 @@ static ret_t widget_set_x(widget_t* widget, xy_t x, bool_t update_layout) {
 }
 
 static ret_t widget_set_y(widget_t* widget, xy_t y, bool_t update_layout) {
-  widget->y = y;
+  if (widget->y != y) {
+    widget_invalidate_force(widget, NULL);
+    widget->y = y;
+    widget_invalidate_force(widget, NULL);
+  }
   if (update_layout && widget->self_layout != NULL) {
     self_layouter_set_param_str(widget->self_layout, "y", "n");
   }
@@ -78,7 +86,11 @@ static ret_t widget_set_y(widget_t* widget, xy_t y, bool_t update_layout) {
 }
 
 static ret_t widget_set_w(widget_t* widget, wh_t w, bool_t update_layout) {
-  widget->w = w;
+  if (widget->w != w) {
+    widget_invalidate_force(widget, NULL);
+    widget->w = w;
+    widget_invalidate_force(widget, NULL);
+  }
   if (update_layout && widget->self_layout != NULL) {
     self_layouter_set_param_str(widget->self_layout, "w", "n");
   }
@@ -86,7 +98,11 @@ static ret_t widget_set_w(widget_t* widget, wh_t w, bool_t update_layout) {
 }
 
 static ret_t widget_set_h(widget_t* widget, xy_t h, bool_t update_layout) {
-  widget->h = h;
+  if (widget->h != h) {
+    widget_invalidate_force(widget, NULL);
+    widget->h = h;
+    widget_invalidate_force(widget, NULL);
+  }
   if (update_layout && widget->self_layout != NULL) {
     self_layouter_set_param_str(widget->self_layout, "h", "n");
   }
@@ -640,7 +656,10 @@ ret_t widget_set_theme(widget_t* widget, const char* name) {
 ret_t widget_set_pointer_cursor(widget_t* widget, const char* cursor) {
   return_value_if_fail(widget != NULL, RET_BAD_PARAMS);
 
-  widget->pointer_cursor = tk_str_copy(widget->pointer_cursor, cursor);
+  if (!tk_str_eq(widget->pointer_cursor, cursor)) {
+    widget->pointer_cursor = tk_str_copy(widget->pointer_cursor, cursor);
+    widget_update_pointer_cursor(widget);
+  }
 
   return RET_OK;
 }
@@ -1427,7 +1446,13 @@ ret_t widget_calc_icon_text_rect(const rect_t* ir, int32_t font_size, float_t te
       break;
     }
     case ICON_AT_RIGHT: {
-      *r_icon = rect_init(ir->x + ir->w - ir->h, ir->y, ir->h, ir->h);
+      uint32_t w = img_w;
+      float_t ratio = system_info()->device_pixel_ratio;
+      if (ratio > 1) {
+        w = img_w / ratio;
+      }
+      w = tk_min(tk_max(w, ir->h), ir->w);
+      *r_icon = rect_init(ir->x + ir->w - w, ir->y, w, ir->h);
       *r_text = rect_init(ir->x, ir->y, ir->w - ir->h - spacer, ir->h);
       break;
     }
@@ -3341,7 +3366,7 @@ ret_t widget_invalidate_force(widget_t* widget, const rect_t* r) {
   return_value_if_fail(widget != NULL, RET_BAD_PARAMS);
 
   widget->dirty = FALSE;
-  return widget_invalidate(widget, NULL);
+  return widget_invalidate(widget, r);
 }
 
 widget_t* widget_init(widget_t* widget, widget_t* parent, const widget_vtable_t* vt, xy_t x, xy_t y,
@@ -3556,20 +3581,27 @@ int32_t widget_index_of(widget_t* widget) {
   return -1;
 }
 
-ret_t widget_prepare_text_style(widget_t* widget, canvas_t* c) {
+ret_t widget_prepare_text_style_ex(widget_t* widget, canvas_t* c, color_t default_trans,
+                                   const char* default_font, uint16_t default_font_size,
+                                   align_h_t default_align_h, align_v_t default_align_v) {
   style_t* style = widget->astyle;
-  color_t trans = color_init(0, 0, 0, 0);
-  color_t tc = style_get_color(style, STYLE_ID_TEXT_COLOR, trans);
-  const char* font_name = style_get_str(style, STYLE_ID_FONT_NAME, NULL);
-  uint16_t font_size = style_get_int(style, STYLE_ID_FONT_SIZE, TK_DEFAULT_FONT_SIZE);
-  align_h_t align_h = (align_h_t)style_get_int(style, STYLE_ID_TEXT_ALIGN_H, ALIGN_H_CENTER);
-  align_v_t align_v = (align_v_t)style_get_int(style, STYLE_ID_TEXT_ALIGN_V, ALIGN_V_MIDDLE);
+  color_t tc = style_get_color(style, STYLE_ID_TEXT_COLOR, default_trans);
+  const char* font_name = style_get_str(style, STYLE_ID_FONT_NAME, default_font);
+  uint16_t font_size = style_get_int(style, STYLE_ID_FONT_SIZE, default_font_size);
+  align_h_t align_h = (align_h_t)style_get_int(style, STYLE_ID_TEXT_ALIGN_H, default_align_h);
+  align_v_t align_v = (align_v_t)style_get_int(style, STYLE_ID_TEXT_ALIGN_V, default_align_v);
 
   canvas_set_text_color(c, tc);
   canvas_set_font(c, font_name, font_size);
   canvas_set_text_align(c, align_h, align_v);
 
   return RET_OK;
+}
+
+ret_t widget_prepare_text_style(widget_t* widget, canvas_t* c) {
+  color_t trans = color_init(0, 0, 0, 0);
+  return widget_prepare_text_style_ex(widget, c, trans, NULL, TK_DEFAULT_FONT_SIZE, ALIGN_H_CENTER,
+                                      ALIGN_V_MIDDLE);
 }
 
 static ret_t widget_copy_style(widget_t* clone, widget_t* widget) {
@@ -4483,8 +4515,8 @@ ret_t widget_reset_canvas(widget_t* widget) {
   return_value_if_fail(c != NULL, RET_BAD_PARAMS);
   rect = rect_init(0, 0, canvas_get_width(c), canvas_get_height(c));
   canvas_set_clip_rect(c, &rect);
+  canvas_reset_font(c);
 
-  c->font = NULL;
   return vgcanvas_reset(canvas_get_vgcanvas(c));
 #else
   (void)widget;
@@ -4876,6 +4908,36 @@ ret_t widget_auto_scale_children(widget_t* widget, int32_t design_w, int32_t des
   widget_foreach(widget, widget_auto_scale_children_child, &info);
 
   return RET_OK;
+}
+
+widget_t* widget_find_parent_by_name(widget_t* widget, const char* name) {
+  widget_t* iter = NULL;
+  return_value_if_fail(widget != NULL && name != NULL, NULL);
+
+  iter = widget->parent;
+  while (iter != NULL) {
+    if (tk_str_eq(iter->name, name)) {
+      break;
+    }
+    iter = iter->parent;
+  }
+
+  return iter;
+}
+
+widget_t* widget_find_parent_by_type(widget_t* widget, const char* type) {
+  widget_t* iter = NULL;
+  return_value_if_fail(widget != NULL && type != NULL, NULL);
+
+  iter = widget->parent;
+  while (iter != NULL) {
+    if (tk_str_eq(widget_get_type(iter), type)) {
+      break;
+    }
+    iter = iter->parent;
+  }
+
+  return iter;
 }
 
 #include "object_widget.inc"

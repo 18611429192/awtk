@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  ext functions for fscript
  *
- * Copyright (c) 2020 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  */
 
@@ -48,6 +48,7 @@ ret_t fscript_ext_init(void);
 #define FSCRIPT_WITH_STREAM_INET 1
 #define FSCRIPT_WITH_STREAM_SERIAL 1
 #define FSCRIPT_WITH_DATE_TIME 1
+#define FSCRIPT_WITH_MODULE 1
 
 #if !defined(TKC_ONLY) || defined(WITH_AWTK)
 #define FSCRIPT_WITH_WIDGET 1

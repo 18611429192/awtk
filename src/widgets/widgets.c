@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  register widgets
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -102,9 +102,9 @@ ret_t tk_widgets_init(void) {
   FACTORY_TABLE_ENTRY(WIDGET_TYPE_COLUMN, column_create)
   FACTORY_TABLE_ENTRY(WIDGET_TYPE_APP_BAR, app_bar_create)
   FACTORY_TABLE_ENTRY(WIDGET_TYPE_DIGIT_CLOCK, digit_clock_create)
-  FACTORY_TABLE_END()
 #endif /*AWTK_LITE*/
 #endif /**AWTK_NOGUI*/
+  FACTORY_TABLE_END()
 
   return widget_factory_register_multi(f, s_basic_widgets);
 }

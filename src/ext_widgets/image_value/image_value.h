@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  image_value
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -223,6 +223,10 @@ widget_t* image_value_cast(widget_t* widget);
 #define IMAGE_VALUE_MAP_DOT "dot"
 /* "/"不是有效的文件名，所以把字符"/"映射成"slash" */
 #define IMAGE_VALUE_MAP_SLASH "slash"
+/* "+"不是有效的文件名，所以把字符"+"映射成"plus" */
+#define IMAGE_VALUE_MAP_PLUS "plus"
+/* "-"不是有效的文件名，所以把字符"-"映射成"minus" */
+#define IMAGE_VALUE_MAP_MINUS "minus"
 
 #define WIDGET_PROP_CLICK_ADD_DELTA "click_add_delta"
 

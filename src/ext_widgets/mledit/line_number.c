@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  line_number
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -48,12 +48,17 @@ static ret_t line_number_do_paint_self(widget_t* widget, canvas_t* c) {
   line_number_t* line_number = LINE_NUMBER(widget);
   int32_t yoffset = line_number->yoffset;
   int32_t line_height = line_number->line_height;
-
   return_value_if_fail(line_height > 0, RET_BAD_PARAMS);
 
   if (style_is_valid(widget->astyle)) {
     uint32_t line_index = 0;
-    widget_prepare_text_style(widget, c);
+    color_t trans = color_init(0, 0, 0, 0);
+    widget_prepare_text_style_ex(widget, c, trans, NULL, TK_DEFAULT_FONT_SIZE, ALIGN_H_RIGHT,
+                                 ALIGN_V_TOP);
+    color_t active_bg =
+        style_get_color(widget->astyle, LINE_NUMBER_STYLE_ACTIVE_LINE_BG_COLOR, trans);
+    color_t highlight_bg =
+        style_get_color(widget->astyle, LINE_NUMBER_STYLE_HIGHLIGHT_LINE_BG_COLOR, trans);
 
     while (1) {
       if (line > 0) {
@@ -73,6 +78,13 @@ static ret_t line_number_do_paint_self(widget_t* widget, canvas_t* c) {
       r = rect_init(x, y - yoffset, w, line_height);
       tk_snprintf(str, sizeof(str), "%u", (line + 1));
 
+      if (line == line_number->active_line && active_bg.rgba.a) {
+        canvas_set_fill_color(c, active_bg);
+        canvas_fill_rect(c, r.x, r.y, r.w, r.h);
+      } else if (line_number_is_highlight_line(widget, line) && highlight_bg.rgba.a) {
+        canvas_set_fill_color(c, highlight_bg);
+        canvas_fill_rect(c, r.x, r.y, r.w, r.h);
+      }
       wstr_set_utf8(text, str);
       canvas_draw_text_in_rect(c, text->str, text->size, &r);
 
@@ -188,6 +200,7 @@ widget_t* line_number_create(widget_t* parent, xy_t x, xy_t y, wh_t w, wh_t h) {
   widget_t* widget = widget_create(parent, TK_REF_VTABLE(line_number), x, y, w, h);
   line_number_t* line_number = LINE_NUMBER(widget);
   return_value_if_fail(line_number != NULL, NULL);
+  line_number->active_line = -1;
 
   return widget;
 }
@@ -196,4 +209,56 @@ widget_t* line_number_cast(widget_t* widget) {
   return_value_if_fail(WIDGET_IS_INSTANCE_OF(widget, line_number), NULL);
 
   return widget;
+}
+
+static ret_t line_number_ensure_highlight_lines(line_number_t* line_number) {
+  return_value_if_fail(line_number != NULL, RET_BAD_PARAMS);
+
+  if (line_number->highlight_lines == NULL) {
+    line_number->highlight_lines = typed_array_create(VALUE_TYPE_INT32, 10);
+  }
+
+  return line_number->highlight_lines != NULL ? RET_OK : RET_FAIL;
+}
+
+bool_t line_number_is_highlight_line(widget_t* widget, int32_t line) {
+  line_number_t* line_number = LINE_NUMBER(widget);
+  if (line_number != NULL && line_number->highlight_lines != NULL) {
+    value_t v;
+    uint32_t i = 0;
+    for (i = 0; i < line_number->highlight_lines->size; i++) {
+      typed_array_get(line_number->highlight_lines, i, &v);
+      if (value_int(&v) == line) {
+        return TRUE;
+      }
+    }
+  }
+
+  return FALSE;
+}
+
+ret_t line_number_add_highlight_line(widget_t* widget, int32_t line) {
+  value_t v;
+  line_number_t* line_number = LINE_NUMBER(widget);
+  return_value_if_fail(line_number_ensure_highlight_lines(line_number) == RET_OK, RET_OOM);
+  widget_invalidate(widget, NULL);
+
+  return typed_array_push(line_number->highlight_lines, value_set_int(&v, line));
+}
+
+ret_t line_number_set_active_line(widget_t* widget, int32_t line) {
+  line_number_t* line_number = LINE_NUMBER(widget);
+  return_value_if_fail(line_number != NULL, RET_BAD_PARAMS);
+
+  line_number->active_line = line;
+  widget_invalidate(widget, NULL);
+
+  return RET_OK;
+}
+
+ret_t line_number_clear_highlight(widget_t* widget) {
+  line_number_t* line_number = LINE_NUMBER(widget);
+  return_value_if_fail(line_number != NULL, RET_BAD_PARAMS);
+
+  return typed_array_clear(line_number->highlight_lines);
 }

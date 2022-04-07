@@ -1,4 +1,4 @@
-/**
+﻿/**
  * File:   debugger_const.h
  * Author: AWTK Develop Team
  * Brief:  debugger constant
@@ -29,5 +29,13 @@
 
 #define DEBUGGER_IO_READ_TIMEOUT 1000000
 #define DEBUGGER_IO_WRITE_TIMEOUT 500000
+
+#ifndef DEBUGGER_TCP_PORT
+#define DEBUGGER_TCP_PORT 6789
+#endif /*DEBUGGER_TCP_PORT*/
+
+#define DEBUGGER_START_LINE 0xffffffff
+
+#define DEBUGGER_DEFAULT_CODE_ID "0"
 
 #endif /*TK_DEBUGGER_CONST_H*/

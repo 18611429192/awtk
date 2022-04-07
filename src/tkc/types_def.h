@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  basic types definitions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,6 +34,12 @@
 #include <string.h>
 #include <limits.h>
 #include <inttypes.h>
+
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#ifndef MINGW
+#define MINGW 1
+#endif
+#endif
 
 #if defined(HAS_AWTK_CONFIG)
 #include "awtk_config.h"
@@ -251,15 +257,18 @@ typedef enum _ret_t {
 #define MAX_PATH 255
 #endif /*MAX_PATH*/
 
-#if defined(WIN32) && !defined(MINGW)
+#if defined(WIN32)
 #define TK_PATH_SEP '\\'
+#else
+#define TK_PATH_SEP '/'
+#endif /*TK_PATH_SEP*/
+
+#if defined(WIN32) && !defined(MINGW)
 #ifndef snprintf
 #define snprintf _snprintf
 #endif /*snprintf*/
 
 #define strcasecmp stricmp
-#else
-#define TK_PATH_SEP '/'
 #endif /*TK_PATH_SEP*/
 
 #if defined(NDEBUG) || defined(SYLIXOS)
@@ -369,6 +378,7 @@ enum { TK_NAME_LEN = 31, TK_FUNC_NAME_LEN = 63 };
 #define TK_NUM_MAX_LEN 31u
 #define TK_UINT32_MAX 0xffffffffu
 #define TK_LOCALE_MAGIC "$locale$"
+#define TK_OBJECT_PROP_NAME_MAX_LEN 64u
 
 #define TK_D2R(d) (((d)*M_PI) / 180)
 #define TK_R2D(r) (((r)*180) / M_PI)
@@ -431,5 +441,12 @@ typedef struct _event_source_manager_t event_source_manager_t;
 #define tk_isxdigit(c) (((int)(c) < 128) && isxdigit(c))
 #define tk_isprint(c) (((int)(c) < 128) && isprint(c))
 #define tk_isalpha(c) (((int)(c) < 128) && isalpha(c))
+
+#define STR_SCHEMA_TCP "tcp://"
+#define STR_SCHEMA_UDP "udp://"
+#define STR_SCHEMA_SERIAL "serial://"
+#define STR_SCHEMA_FILE "file://"
+#define STR_SCHEMA_HTTP "http://"
+#define STR_SCHEMA_HTTPS "https://"
 
 #endif /*TYPES_DEF_H*/

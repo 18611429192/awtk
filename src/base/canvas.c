@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  canvas provides basic drawings functions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -31,6 +31,10 @@
 #include "base/system_info.h"
 
 #include "base/lcd_profile.h"
+
+#ifndef CANVAS_MEASURE_TEXT_CACHE_MAX_LENGTH
+#define CANVAS_MEASURE_TEXT_CACHE_MAX_LENGTH 127
+#endif
 
 static ret_t canvas_draw_fps(canvas_t* c);
 static ret_t canvas_draw_icon_ex(canvas_t* c, bitmap_t* img, const rect_t* src_r, xy_t cx, xy_t cy);
@@ -93,6 +97,7 @@ canvas_t* canvas_init(canvas_t* c, lcd_t* lcd, font_manager_t* font_manager) {
   c->clip_right = canvas_get_width(c) - 1;
   c->clip_bottom = canvas_get_height(c) - 1;
 
+  c->last_text_str = TKMEM_ZALLOCN(wchar_t, CANVAS_MEASURE_TEXT_CACHE_MAX_LENGTH + 1);
   return c;
 }
 
@@ -255,15 +260,36 @@ ret_t canvas_set_font(canvas_t* c, const char* name, font_size_t size) {
   return_value_if_fail(c != NULL && c->lcd != NULL, RET_BAD_PARAMS);
 
   name = system_info_fix_font_name(name);
-  c->font_name = tk_str_copy(c->font_name, name);
-  c->font_size = system_info()->font_scale * size;
+  size = system_info()->font_scale * size;
 
-  if (c->lcd->set_font_name != NULL) {
-    lcd_set_font_name(c->lcd, c->font_name);
-    lcd_set_font_size(c->lcd, size);
-  } else {
-    c->font = font_manager_get_font(c->font_manager, c->font_name, c->font_size);
+  if (c->font_size != size) {
+    c->font_size = size;
+    c->last_text_length = 0;
   }
+  if (!tk_str_eq(name, c->font_name)) {
+    c->last_text_length = 0;
+    c->font_name = tk_str_copy(c->font_name, name);
+  }
+
+  if (c->last_text_length == 0) {
+    if (c->lcd->set_font_name != NULL) {
+      lcd_set_font_name(c->lcd, c->font_name);
+      lcd_set_font_size(c->lcd, size);
+    } else {
+      c->font = font_manager_get_font(c->font_manager, c->font_name, c->font_size);
+    }
+  }
+
+  return RET_OK;
+}
+
+ret_t canvas_reset_font(canvas_t* c) {
+  return_value_if_fail(c != NULL, RET_BAD_PARAMS);
+
+  c->font_size = 0;
+  c->last_text_length = 0;
+  c->font = NULL;
+  TKMEM_FREE(c->font_name);
 
   return RET_OK;
 }
@@ -298,11 +324,25 @@ static float_t canvas_measure_text_default(canvas_t* c, const wchar_t* str, uint
 float_t canvas_measure_text(canvas_t* c, const wchar_t* str, uint32_t nr) {
   return_value_if_fail(c != NULL && c->lcd != NULL && str != NULL, 0);
 
-  if (c->lcd->measure_text) {
-    return lcd_measure_text(c->lcd, str, nr);
+  if (c->last_text_length != 0 && c->last_text_nr == nr && tk_wstr_eq(c->last_text_str, str)) {
+    return c->last_text_length;
   } else {
-    return canvas_measure_text_default(c, str, nr);
+    if (nr > CANVAS_MEASURE_TEXT_CACHE_MAX_LENGTH) {
+      c->last_text_nr = 0;
+      c->last_text_str[0] = 0;
+    } else {
+      tk_memcpy(c->last_text_str, str, nr * sizeof(wchar_t));
+      c->last_text_nr = nr;
+      c->last_text_str[nr] = 0;
+    }
   }
+
+  if (c->lcd->measure_text) {
+    c->last_text_length = lcd_measure_text(c->lcd, str, nr);
+  } else {
+    c->last_text_length = canvas_measure_text_default(c, str, nr);
+  }
+  return c->last_text_length;
 }
 
 float_t canvas_measure_utf8(canvas_t* c, const char* str) {
@@ -1795,6 +1835,8 @@ ret_t canvas_draw_image_at(canvas_t* c, bitmap_t* img, xy_t x, xy_t y) {
   float_t ratio = 0;
   return_value_if_fail(c != NULL && c->lcd != NULL && img != NULL, RET_BAD_PARAMS);
 
+  x += c->ox;
+  y += c->oy;
   ratio = c->lcd->ratio;
   src = rect_init(0, 0, img->w, img->h);
 
@@ -2019,6 +2061,7 @@ ret_t canvas_reset(canvas_t* c) {
   return_value_if_fail(c != NULL && c->lcd != NULL, RET_BAD_PARAMS);
 
   TKMEM_FREE(c->font_name);
+  TKMEM_FREE(c->last_text_str);
   memset(c, 0x00, sizeof(canvas_t));
 
   return RET_OK;

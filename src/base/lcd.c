@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  lcd interface
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -298,7 +298,11 @@ bool_t lcd_is_swappable(lcd_t* lcd) {
   return_value_if_fail(lcd != NULL, FALSE);
 
   if (lcd->swap != NULL) {
+#ifdef WITH_FAST_LCD_PORTRAIT
+    return TRUE;
+#else
     return system_info()->lcd_orientation == LCD_ORIENTATION_0;
+#endif
   }
 
   return FALSE;
@@ -365,6 +369,26 @@ wh_t lcd_get_height(lcd_t* lcd) {
     return lcd->get_height(lcd);
   } else {
     return lcd->h;
+  }
+}
+
+wh_t lcd_get_physical_width(lcd_t* lcd) {
+  return_value_if_fail(lcd != NULL, 0);
+
+  if (lcd->get_physical_width != NULL) {
+    return lcd->get_physical_width(lcd);
+  } else {
+    return lcd_get_width(lcd);
+  }
+}
+
+wh_t lcd_get_physical_height(lcd_t* lcd) {
+  return_value_if_fail(lcd != NULL, 0);
+
+  if (lcd->get_physical_height != NULL) {
+    return lcd->get_physical_height(lcd);
+  } else {
+    return lcd_get_height(lcd);
   }
 }
 

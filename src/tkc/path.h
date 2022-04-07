@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  path
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -44,6 +44,20 @@ BEGIN_C_DECLS
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t path_basename(const char* path, char* result, int32_t size);
+
+/**
+ * @method path_basename_ex
+ *
+ * 返回文件名。
+ *
+ * @param {const char*} path 路径。
+ * @param {bool_t} remove_ext_name 是否去掉扩展名。
+ * @param {char*} result 用于返回文件名。
+ * @param {uint32_t} size 缓冲区大小。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t path_basename_ex(const char* path, bool_t remove_ext_name, char* result, int32_t size);
 
 /**
  * @method path_extname

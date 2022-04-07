@@ -824,6 +824,8 @@ TEST(Widget, calc_icon_text_rect_icon_right) {
   rect_t r_text;
   int32_t spacer = 2;
   int32_t font_size = 20;
+  uint32_t img_w1 = 100;
+  uint32_t img_w2 = 300;
   rect_t ir = rect_init(10, 20, 200, 80);
 
   widget_calc_icon_text_rect(&ir, font_size, 10.0f, ICON_AT_RIGHT, 10, 10, spacer, &r_text,
@@ -838,6 +840,22 @@ TEST(Widget, calc_icon_text_rect_icon_right) {
   ASSERT_EQ(r_text.y, ir.y);
   ASSERT_EQ(r_text.w, ir.w - ir.h - spacer);
   ASSERT_EQ(r_text.h, ir.h);
+  /* icon width greater than ir->h, so r_icon->w = icon width */
+  widget_calc_icon_text_rect(&ir, font_size, 10.0f, ICON_AT_RIGHT, img_w1, 10, spacer, &r_text,
+                             &r_icon);
+
+  ASSERT_EQ(r_icon.x, ir.x + ir.w - img_w1);
+  ASSERT_EQ(r_icon.y, ir.y);
+  ASSERT_EQ(r_icon.w, img_w1);
+  ASSERT_EQ(r_icon.h, ir.h);
+
+  widget_calc_icon_text_rect(&ir, font_size, 10.0f, ICON_AT_RIGHT, img_w2, 10, spacer, &r_text,
+                             &r_icon);
+
+  ASSERT_EQ(r_icon.x, ir.x);
+  ASSERT_EQ(r_icon.y, ir.y);
+  ASSERT_EQ(r_icon.w, ir.w);
+  ASSERT_EQ(r_icon.h, ir.h);
 }
 
 TEST(Widget, calc_icon_text_rect_icon_centre) {
@@ -1399,6 +1417,33 @@ TEST(Widget, update_style4) {
 
   ASSERT_EQ(b->focusable, TRUE);
   ASSERT_EQ(b->feedback, FALSE);
+
+  widget_destroy(w);
+}
+
+TEST(Widget, find_parent_by_name) {
+  widget_t* w = window_create(NULL, 0, 0, 400, 300);
+  widget_t* v = view_create(w, 0, 0, 200, 200);
+  widget_t* b = button_create(v, 0, 0, 100, 30);
+
+  widget_set_name(v, "v");
+  widget_set_name(w, "w");
+
+  ASSERT_EQ(widget_find_parent_by_name(b, "v") == v, TRUE);
+  ASSERT_EQ(widget_find_parent_by_name(b, "w") == w, TRUE);
+  ASSERT_EQ(widget_find_parent_by_name(b, "none") == NULL, TRUE);
+
+  widget_destroy(w);
+}
+
+TEST(Widget, find_parent_by_type) {
+  widget_t* w = window_create(NULL, 0, 0, 400, 300);
+  widget_t* v = view_create(w, 0, 0, 200, 200);
+  widget_t* b = button_create(v, 0, 0, 100, 30);
+
+  ASSERT_EQ(widget_find_parent_by_type(b, WIDGET_TYPE_VIEW) == v, TRUE);
+  ASSERT_EQ(widget_find_parent_by_type(b, WIDGET_TYPE_NORMAL_WINDOW) == w, TRUE);
+  ASSERT_EQ(widget_find_parent_by_type(b, "none") == NULL, TRUE);
 
   widget_destroy(w);
 }

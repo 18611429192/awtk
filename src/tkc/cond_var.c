@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  cond_var simple
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -44,7 +44,7 @@ ret_t tk_cond_var_wait(tk_cond_var_t* cond_var, uint32_t timeout_ms) {
   return_value_if_fail(cond_var != NULL && cond_var->inited, RET_BAD_PARAMS);
 
   tk_mutex_lock(cond_var->mutex);
-  while (!cond_var->has_signal) {
+  if (!cond_var->has_signal) {
     tk_cond_wait_timeout(cond_var->cond, cond_var->mutex, timeout_ms);
   }
   cond_var->has_signal = FALSE;

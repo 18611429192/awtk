@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  events structs
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -381,7 +381,7 @@ typedef enum _event_type_t {
   EVT_RESET,
   /**
    * @const EVT_SCREEN_SAVER
-   * 在指定的时间内(WITH_SCREEN_SAVER_TIME)，没有用户输入事件，由窗口管理器触发。
+   * 在指定的时间内，没有用户输入事件，由窗口管理器触发。
    */
   EVT_SCREEN_SAVER,
   /**
@@ -970,7 +970,7 @@ event_t* window_event_init(window_event_t* event, uint32_t type, void* target, w
 
 /**
  * @method pointer_event_rotate
- * 根据屏幕旋转方向修正pointer_event中的坐标。
+ * 根据屏幕旋转方向修正pointer_event中的坐标。(旋转方向为逆时针)
  * @param {pointer_event_t*} evt 指针事件对象。
  * @param {system_info_t*} info 系统信息。
  *

@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  wrap date time to an object.
  *
- * Copyright (c) 2020 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -68,6 +68,14 @@ tk_object_t* object_date_time_create(void);
  */
 object_date_time_t* object_date_time_cast(tk_object_t* obj);
 #define OBJECT_DATE_TIME(obj) object_date_time_cast(obj)
+
+#define OBJECT_DATE_TIME_PROP_YEAR "year"
+#define OBJECT_DATE_TIME_PROP_MONTH "month"
+#define OBJECT_DATE_TIME_PROP_MINUTE "minute"
+#define OBJECT_DATE_TIME_PROP_DAY "day"
+#define OBJECT_DATE_TIME_PROP_HOUR "hour"
+#define OBJECT_DATE_TIME_PROP_SECOND "second"
+#define OBJECT_DATE_TIME_PROP_WDAY "wday"
 
 END_C_DECLS
 

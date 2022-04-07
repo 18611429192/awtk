@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  color_picker
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -297,10 +297,14 @@ static ret_t color_picker_on_child_value_changing(void* ctx, event_t* e) {
       color_picker_set_color_v(widget, (float)v / 100.0f);
     } else if (tk_str_eq(name, COLOR_PICKER_CHILD_NEW)) {
       char color[32];
+      uint32_t len = 0;
       memset(color, 0x00, sizeof(color));
       color[0] = '#';
       wstr_get_utf8(&(child->text), color + 1, sizeof(color) - 2);
-      if (strlen(color) == 7) {
+      len = strlen(color);
+      if (len == 1) {
+        color_picker_set_color(widget, "rgba(0,0,0,0)");
+      } else if (len == 7 || len == 9) {
         color_picker_set_color(widget, color);
       }
     }
@@ -320,6 +324,7 @@ static ret_t color_picker_on_child_value_changing(void* ctx, event_t* e) {
       color_picker_set_color_v(widget, (float)v / 100.0f);
     }
   } else if (tk_str_eq(type, WIDGET_TYPE_COLOR_COMPONENT)) {
+    color_picker->c.rgba.a = 0xff;
     if (tk_str_eq(name, COLOR_PICKER_CHILD_SV)) {
       color_component_t* color_cmp = COLOR_COMPONENT(child);
       float s = color_component_get_s(child);

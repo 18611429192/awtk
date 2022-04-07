@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  widget property names
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -250,7 +250,6 @@ BEGIN_C_DECLS
  * 虚拟高度。
  */
 #define WIDGET_PROP_VIRTUAL_H "virtual_h"
-
 
 /**
  * @const WIDGET_PROP_LOADING
@@ -1468,6 +1467,12 @@ typedef enum _window_closable_t {
  * 编辑器无内容同时聚焦的状态。
  */
 #define WIDGET_STATE_EMPTY_FOCUS "empty_focus"
+
+/**
+ * @const WIDGET_STATE_EMPTY_OVER
+ * 编辑器无内容同时指针悬浮的状态。
+ */
+#define WIDGET_STATE_EMPTY_OVER "empty_over"
 
 /**
  * @const WIDGET_STATE_ERROR

@@ -43,12 +43,40 @@ BEGIN_C_DECLS
 ret_t debugger_server_start(tk_iostream_t* io);
 
 /**
+ * @method debugger_server_wait
+ * 等待调试器服务退出。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t debugger_server_wait(void);
+
+/**
  * @method debugger_server_stop
  * 停用调试器服务。
  *
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t debugger_server_stop(void);
+
+/**
+ * @method debugger_server_set_single_mode
+ * 设置为单一debugger模式。
+ * @param {bool_t} single_mode 单一debugger模式
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t debugger_server_set_single_mode(bool_t single_mode);
+
+/**
+ * @method debugger_server_set_single_mode_ex
+ * 设置为单一debugger模式。
+ *
+ * @param {bool_t} single_mode 单一debugger模式
+ * @param {const char*} lang 语言。
+ * @param {const char*} code_id 代码ID。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t debugger_server_set_single_mode_ex(bool_t single_mode, const char* lang, const char* code_id);
 
 /**
  * @method debugger_server_is_running

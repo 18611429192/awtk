@@ -209,6 +209,7 @@ class AppHelperBase:
         self.PLATFORM_LIBS = []
         self.APP_TOOLS = None
         self.WITH_JERRYSCRIPT = False
+        self.WITH_IOTJS = False
         self.MVVM_ROOT = None
         self.AWFLOW_ROOT = None
 
@@ -225,6 +226,7 @@ class AppHelperBase:
             os.environ['LINUX_FB'] = 'true'
 
         self.WITH_JERRYSCRIPT = ARGUMENTS.get('WITH_JERRYSCRIPT', '').lower().startswith('t')
+        self.WITH_IOTJS = ARGUMENTS.get('WITH_IOTJS', '').lower().startswith('t')
 
         WITH_MVVM = ARGUMENTS.get('WITH_MVVM', '').lower().startswith('t')
         MVVM_ROOT = ARGUMENTS.get('MVVM_ROOT', '')
@@ -308,12 +310,22 @@ class AppHelperBase:
             print(self.DEF_FILE)
         else:
             return
+        defDirlist = ''
+        if self.APP_ROOT != self.AWTK_ROOT:
+            defDirlist += os.path.abspath(self.AWTK_ROOT + '/tools/idl_gen/idl.json') + ';'
+        for defLib in self.DEPENDS_LIBS :
+            tmp_filename = os.path.abspath(defLib["root"] + '/idl/idl.json')
+            if not os.path.exists(tmp_filename) :
+                tmp_filename = os.path.abspath(defLib["root"] + '/idl.json')
+            defDirlist += tmp_filename + ';'
 
         idl_gen_tools = os.path.join(self.AWTK_ROOT, 'tools/idl_gen/index.js')
         dll_def_gen_tools = os.path.join(
             self.AWTK_ROOT, 'tools/dll_def_gen/index.js')
 
         cmd = 'node ' + '"' + idl_gen_tools + '"' + ' idl/idl.json ' + self.SRC_DIR
+        if defDirlist != '' :
+            cmd += ' "' + defDirlist + '" '
         if os.system(cmd) != 0:
             print('exe cmd: ' + cmd + ' failed.')
 
@@ -462,8 +474,22 @@ class AppHelperBase:
         DEPENDS_LIBS = []
 
         if self.MVVM_ROOT:
-            if self.WITH_JERRYSCRIPT:
-                MVVM_3RD_ROOT = join_path(self.MVVM_ROOT, '3rd')
+            MVVM_3RD_ROOT = join_path(self.MVVM_ROOT, '3rd')
+            if self.WITH_IOTJS:
+                IOTJS_ROOT = os.path.join(MVVM_3RD_ROOT, 'iotjs')
+                DEPENDS_LIBS += [{
+                    'cxxflags': '-DWITH_MVVM -DWITH_JERRYSCRIPT -DWITH_IOTJS',
+                    'cflags': '-DWITH_MVVM -DWITH_JERRYSCRIPT -DWITH_IOTJS',
+                    'ccflags': '-DWITH_MVVM -DWITH_JERRYSCRIPT -DWITH_IOTJS',
+                    'root' : self.MVVM_ROOT,
+                    'shared_libs': ['mvvm'],
+                    'static_libs': ['']
+                }]
+                CPPPATH += [
+                    join_path(IOTJS_ROOT, 'deps/jerry/jerry-ext/include'),
+                    join_path(IOTJS_ROOT, 'deps/jerry/jerry-core/include')
+                ]
+            elif self.WITH_JERRYSCRIPT:
                 DEPENDS_LIBS += [{
                     'cxxflags': '-DWITH_MVVM -DWITH_JERRYSCRIPT',
                     'cflags': '-DWITH_MVVM -DWITH_JERRYSCRIPT',
@@ -474,7 +500,7 @@ class AppHelperBase:
                 }]
                 CPPPATH += [
                     join_path(MVVM_3RD_ROOT, 'jerryscript/jerryscript/jerry-ext/include'),
-                    join_path(MVVM_3RD_ROOT, 'jerryscript/jerryscript/jerry-core/include'),
+                    join_path(MVVM_3RD_ROOT, 'jerryscript/jerryscript/jerry-core/include')
                 ]
             else:
                 DEPENDS_LIBS += [{

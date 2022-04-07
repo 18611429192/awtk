@@ -440,6 +440,22 @@ TEST(FScript, bit_not) {
   ASSERT_EQ(value_int(&v), ~1);
   value_reset(&v);
 
+  fscript_eval(obj, "~(u8(1))", &v);
+  ASSERT_EQ(value_uint8(&v), 0xfe);
+  value_reset(&v);
+
+  fscript_eval(obj, "~(u16(1))", &v);
+  ASSERT_EQ(value_uint16(&v), 0xfffe);
+  value_reset(&v);
+
+  fscript_eval(obj, "~(u32(1))", &v);
+  ASSERT_EQ(value_uint32(&v), 0xfffffffe);
+  value_reset(&v);
+
+  fscript_eval(obj, "~(u64(1))", &v);
+  ASSERT_EQ(value_uint64(&v), 0xfffffffffffffffe);
+  value_reset(&v);
+
   TK_OBJECT_UNREF(obj);
 }
 
@@ -745,6 +761,7 @@ TEST(FScript, global_var) {
 
   TK_OBJECT_UNREF(obj);
 }
+
 TEST(FScript, sqrt) {
   value_t v;
   tk_object_t* obj = object_default_create();
@@ -1154,9 +1171,9 @@ TEST(FExpr, not_eq) {
 TEST(FScript, global_func) {
   value_t v;
   tk_object_t* obj = object_default_create();
-  fscript_register_func("foo", func_foo);
+  fscript_register_func("foobar", func_foo);
 
-  fscript_eval(obj, "foo()", &v);
+  fscript_eval(obj, "foobar()", &v);
   ASSERT_EQ(value_int(&v), 123);
   value_reset(&v);
 
@@ -1314,6 +1331,28 @@ TEST(FExr, repeat_statement13) {
   TK_OBJECT_UNREF(obj);
 }
 
+TEST(FExr, repeat_statement14) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+               "var s = 0;\
+var i = 0;\
+repeat(i, 0, 100, 1) {;\
+  s = s + i;\
+}\
+repeat(a, 0, 100, 1) {\
+  s = s + a;\
+}\
+print(s)\
+s",
+               &v);
+  ASSERT_EQ(value_int(&v), 9900);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
 TEST(FExr, while_statement2) {
   value_t v;
   tk_object_t* obj = object_default_create();
@@ -1444,6 +1483,22 @@ TEST(FExr, syntax_check) {
   fscript_parser_error_t error;
   fscript_syntax_check(obj, "1", &error);
   ASSERT_EQ(error.message, (const char*)NULL);
+  fscript_parser_error_deinit(&error);
+
+  fscript_syntax_check(obj, "1 <", &error);
+  ASSERT_STREQ(error.message, "expect an expression");
+  fscript_parser_error_deinit(&error);
+
+  fscript_syntax_check(obj, "1 +", &error);
+  ASSERT_STREQ(error.message, "expect an expression");
+  fscript_parser_error_deinit(&error);
+
+  fscript_syntax_check(obj, "1 /", &error);
+  ASSERT_STREQ(error.message, "expect an expression");
+  fscript_parser_error_deinit(&error);
+
+  fscript_syntax_check(obj, "1 -", &error);
+  ASSERT_STREQ(error.message, "expect an expression");
   fscript_parser_error_deinit(&error);
 
   fscript_syntax_check(obj, "(1+1", &error);
@@ -1807,7 +1862,7 @@ TEST(FScript, create_ex1) {
   fscript_t* fscript = fscript_create_ex(obj, "print(123)", TRUE);
   char* p = FUNC_CALL_NAME(fscript->first);
   ASSERT_STREQ(p, "expr");
-  p = FUNC_CALL_NAME((fscript_func_call_t*)(fscript->first->args.args->value.ptr));
+  p = FUNC_CALL_NAME((fscript_func_call_t*)(value_func(fscript->first->args.args)));
   ASSERT_STREQ(p, "print");
 
   fscript_destroy(fscript);
@@ -1819,7 +1874,7 @@ TEST(FScript, create_ex2) {
   fscript_t* fscript = fscript_create_ex(obj, "1+2", TRUE);
   char* p = FUNC_CALL_NAME(fscript->first);
   ASSERT_STREQ(p, "expr");
-  p = FUNC_CALL_NAME((fscript_func_call_t*)(fscript->first->args.args->value.ptr));
+  p = FUNC_CALL_NAME((fscript_func_call_t*)(value_func(fscript->first->args.args)));
   ASSERT_STREQ(p, "+");
 
   fscript_destroy(fscript);
@@ -2014,6 +2069,25 @@ TEST(FExr, char_at) {
 TEST(FExr, for_in1) {
   const char* str =
       "\
+  var b = 0;\
+  var a = array_create(1, 2, 3, 4, 5,6)\
+  for_in(i, a) {\
+    b = b + i;\
+  }\
+  b";
+
+  value_t v1;
+  tk_object_t* obj = object_default_create();
+  fscript_eval(obj, str, &v1);
+  ASSERT_EQ(value_int(&v1), 21);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FExr, for_in11) {
+  const char* str =
+      "\
+  var i = 0;\
   var b = 0;\
   var a = array_create(1, 2, 3, 4, 5,6)\
   for_in(i, a) {\
@@ -2413,5 +2487,192 @@ TEST(FExr, reload) {
   }
 
   fscript_destroy(fscript);
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, crc32) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+  tk_object_set_prop_str(obj, "a", "hello");
+
+  fscript_eval(obj, "crc32(a)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, 5)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, -1)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, 1)", &v);
+  ASSERT_EQ(2439710439, value_uint32(&v));
+  value_reset(&v);
+
+  tk_object_set_prop_pointer(obj, "a", (void*)"hello");
+  fscript_eval(obj, "crc32(a, 5)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, 1)", &v);
+  ASSERT_EQ(2439710439, value_uint32(&v));
+  value_reset(&v);
+
+  value_set_binary_data(&v, (void*)"hello", 5);
+  tk_object_set_prop(obj, "a", &v);
+
+  fscript_eval(obj, "crc32(a)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, 5)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, -1)", &v);
+  ASSERT_EQ(907060870, value_uint32(&v));
+  value_reset(&v);
+
+  fscript_eval(obj, "crc32(a, 1)", &v);
+  ASSERT_EQ(2439710439, value_uint32(&v));
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, binary_len) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+  value_set_binary_data(&v, (void*)"hello", 5);
+  tk_object_set_prop(obj, "a", &v);
+  fscript_eval(obj, "len(a)", &v);
+  ASSERT_EQ(5, value_uint32(&v));
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, local_vars) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj, "var a = 1; var b =2; var c = a + b;c", &v);
+  ASSERT_EQ(value_int(&v), 3);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, local_unset_vars) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj, "var a = 1; var b =2; var c = a + b;unset(a); unset(b);c", &v);
+  ASSERT_EQ(value_int(&v), 3);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, local_multi_level) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj, "var obj=object_create();obj.name='hello';obj.age=100;obj.age", &v);
+  ASSERT_EQ(value_int(&v), 100);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, local_multi_level2) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+               "\
+var a = object_create();\
+a.age=100;\
+a.name = 'hello';\
+a.wife = object_create();\
+a.wife.name = 'world';\
+a.wife.age = 99;\
+var b = a.age + a.wife.age;\
+b\
+",
+               &v);
+  ASSERT_EQ(value_int(&v), 199);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, func_call_multi) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+               "function foo1(a) {return a};function bar(b) {return b;}; function hello(a, b) "
+               "{return a + b;}; var c = hello(foo1(1)+foo1(2)+foo1(3), bar(2)*2+6);c",
+               &v);
+  ASSERT_EQ(value_int(&v), 16);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, func_no_args) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+               "function foo1() {return 1};function bar() {return 2;}; function hello(a, b) "
+               "{return a + b;}; var c = hello(foo1(), bar());c",
+               &v);
+  ASSERT_EQ(value_int(&v), 3);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, module_str) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+"\
+var a = require_str('\
+function foo(a, b) {\
+  return a + b;\
+}\
+')\
+var b = a.foo(100, 99);\
+b\
+",
+               &v);
+  ASSERT_EQ(value_int(&v), 199);
+  value_reset(&v);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(FScript, module_file) {
+  value_t v;
+  tk_object_t* obj = object_default_create();
+
+  fscript_eval(obj,
+"\
+var a = require('./tests/fscripts/foo.fs')\
+var b = a.foo(100, 99);\
+var c = a.bar(100, 99);\
+var d = b + c;\
+d\
+",
+               &v);
+  ASSERT_EQ(value_int(&v), 200);
+  value_reset(&v);
+
   TK_OBJECT_UNREF(obj);
 }

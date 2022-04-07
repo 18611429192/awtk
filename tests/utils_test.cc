@@ -586,3 +586,94 @@ TEST(Utils, is_in_array) {
   ASSERT_EQ(tk_str_is_in_array("123", arr2, ARRAY_SIZE(arr2)), FALSE);
   ASSERT_EQ(tk_str_is_in_array("123", arr3, ARRAY_SIZE(arr3)), TRUE);
 }
+
+TEST(Utils, memcpy_by_align_4) {
+#define path_max_len 64
+  uint8_t path[path_max_len * 2] = {0};
+  uint8_t path1[path_max_len * 2] = {0};
+
+  for (uint8_t i = 0; i < path_max_len * 2; i++) {
+    path1[i] = i;
+  }
+
+  tk_memcpy_by_align_4(path, path1, path_max_len);
+
+  for (uint8_t i = 0; i < path_max_len; i++) {
+    ASSERT_EQ(path[i], path1[i]);
+  }
+
+  memset(path, 0x0, sizeof(path));
+
+  tk_memcpy_by_align_4(path, path1, path_max_len * 2);
+
+  for (uint8_t i = 0; i < path_max_len * 2; i++) {
+    ASSERT_EQ(path[i], path1[i]);
+  }
+}
+
+TEST(Utils, tk_memcpy) {
+#define path_max_len 64
+  uint8_t path[path_max_len * 2 + 1] = {0};
+  uint8_t path1[path_max_len * 2 + 1] = {0};
+
+  ASSERT_EQ(tk_memcpy(path, path1, 0) == path, true);
+  ASSERT_EQ(tk_memcpy(path, NULL, path_max_len) == NULL, true);
+  ASSERT_EQ(tk_memcpy(NULL, path1, path_max_len) == NULL, true);
+
+  for (uint8_t i = 0; i < path_max_len * 2; i++) {
+    path1[i] = i;
+  }
+
+  tk_memcpy(path, path1, path_max_len);
+
+  for (uint8_t i = 0; i < path_max_len; i++) {
+    ASSERT_EQ(path[i], path1[i]);
+  }
+
+  memset(path, 0x0, sizeof(path));
+
+  tk_memcpy(path, path1, path_max_len * 2);
+
+  for (uint8_t i = 0; i < path_max_len * 2; i++) {
+    ASSERT_EQ(path[i], path1[i]);
+  }
+
+  memset(path, 0x0, sizeof(path));
+
+  tk_memcpy(path + 1, path1 + 1, path_max_len * 2);
+
+  for (uint8_t i = 1; i < path_max_len * 2; i++) {
+    ASSERT_EQ(path[i], path1[i]);
+  }
+
+  memset(path, 0x0, sizeof(path));
+
+  tk_memcpy(path, path1 + 1, path_max_len * 2);
+
+  for (uint8_t i = 0; i < path_max_len * 2; i++) {
+    ASSERT_EQ(path[i], path1[i + 1]);
+  }
+}
+
+TEST(Utils, tk_wild_card_match) {
+  ASSERT_EQ(tk_wild_card_match("", ""), TRUE);
+  ASSERT_EQ(tk_wild_card_match("*", ""), TRUE);
+  ASSERT_EQ(tk_wild_card_match("*", "a"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("*", "ab"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("*c", "abc"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("?bc", "abc"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("abc", "abc"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a?c", "a?c"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a?c", "abc"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*c", "a123c"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*c*", "a123c"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("*a*c*", "a123c"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*", "a123c"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*", "a"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*", "ab"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a*", "abc"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a?", "ab"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("a?", "abc"), FALSE);
+  ASSERT_EQ(tk_wild_card_match("awflow_*", "awflow_123"), TRUE);
+  ASSERT_EQ(tk_wild_card_match("awflow_*", "awflow_abc"), TRUE);
+}

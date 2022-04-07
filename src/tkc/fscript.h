@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  a simple functional script language
  *
- * Copyright (c) 2020 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  */
 
@@ -177,7 +177,7 @@ struct _fscript_t {
   uint8_t loop_count;
 
   /*函数局部变量和参数*/
-  tk_object_t* locals;
+  darray_t* locals;
   /*脚本定义的函数*/
   tk_object_t* funcs_def;
 
@@ -206,6 +206,20 @@ fscript_t* fscript_create(tk_object_t* obj, const char* script);
  * @return {fscript_t*} 返回fscript对象。
  */
 fscript_t* fscript_create_ex(tk_object_t* obj, const char* script, bool_t keep_func_name);
+
+/**
+ * @method fscript_init
+ * 初始化引擎对象，并解析代码。
+ * @param {fscript_t*} fscript 初始化 fscript 对象。
+ * @param {tk_object_t*} obj 脚本执行上下文。
+ * @param {const char*} script 脚本代码。
+ * @param {const char*} first_call_name 第一个函数的名字。
+ * @param {bool_t} keep_func_name 是否在func_call结构后保存函数名。
+ *
+ * @return {fscript_t*} 返回fscript对象。
+ */
+fscript_t* fscript_init(fscript_t* fscript, tk_object_t* obj, const char* script,
+                        const char* first_call_name, bool_t keep_func_name);
 
 /**
  * @method fscript_syntax_check
@@ -280,6 +294,15 @@ ret_t fscript_set_on_error(fscript_t* fscript, fscript_on_error_t on_error, void
 ret_t fscript_set_print_func(fscript_t* fscript, fscript_func_t print);
 
 /**
+ * @method fscript_deinit
+ * 清除引擎对象的数据。
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_deinit(fscript_t* fscript);
+
+/**
  * @method fscript_destroy
  * 销毁引擎对象。
  * @param {fscript_t*} fscript 脚本引擎对象。
@@ -306,6 +329,16 @@ ret_t fscript_eval(tk_object_t* obj, const char* script, value_t* result);
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t fscript_global_init(void);
+
+/**
+ * @method fscript_set_global_object
+ * 用于替换默认的全局对象。
+ * >仅限于在系统初始化时调用。
+ * @param {tk_object_t*} obj 全局对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_set_global_object(tk_object_t* obj);
 
 /**
  * @method fscript_register_func
@@ -399,18 +432,11 @@ struct _fscript_func_call_t {
     return code;                                                                     \
   }
 
-#define VALUE_TYPE_FSCRIPT_ID 128
-#define VALUE_TYPE_FSCRIPT_FUNC VALUE_TYPE_FSCRIPT_ID + 1
+#define FSCRIPT_STR_GLOBAL_PREFIX "global."
+#define FSCRIPT_GLOBAL_PREFIX_LEN 7
 
-static inline fscript_func_call_t* value_func(const value_t* v) {
-  return_value_if_fail(v->type == VALUE_TYPE_FSCRIPT_FUNC, NULL);
-  return (fscript_func_call_t*)(v->value.ptr);
-}
-
-static inline const char* value_id(const value_t* v) {
-  return_value_if_fail(v->type == VALUE_TYPE_FSCRIPT_ID, NULL);
-  return (const char*)(v->value.str);
-}
+#define VALUE_TYPE_FSCRIPT_ID VALUE_TYPE_ID
+#define VALUE_TYPE_FSCRIPT_FUNC VALUE_TYPE_FUNC
 
 typedef ret_t (*fscript_on_init_t)(fscript_t* fscript, const char* code);
 typedef ret_t (*fscript_on_deinit_t)(fscript_t* fscript);
@@ -420,7 +446,26 @@ typedef ret_t (*fscript_set_var_t)(fscript_t* fscript, const char* name, const v
 typedef ret_t (*fscript_exec_func_t)(fscript_t* fscript, const char* name,
                                      fscript_func_call_t* iter, value_t* result);
 
+/**
+ * @method fscript_set_var_default
+ * 设置变量的默认实现。
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ * @param {const char*} name 变量名。
+ * @param {const value_t*} value 值。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
 ret_t fscript_set_var_default(fscript_t* fscript, const char* name, const value_t* value);
+
+/**
+ * @method fscript_exec_func_default
+ * 执行函数的默认实现。
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ * @param {fscript_func_call_t*} iter 当前函数。
+ * @param {value_t*} result 返回结果。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
 ret_t fscript_exec_func_default(fscript_t* fscript, fscript_func_call_t* iter, value_t* result);
 
 typedef struct _fscript_hooks_t {
@@ -432,7 +477,23 @@ typedef struct _fscript_hooks_t {
   fscript_after_exec_t after_exec;
 } fscript_hooks_t;
 
+/**
+ * @method fscript_set_hooks
+ * 设置回调函数。
+ * @param {const fscript_hooks_t*} hooks 回调函数。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
 ret_t fscript_set_hooks(const fscript_hooks_t* hooks);
+
+/**
+ * @method fscript_ensure_locals
+ * export for debugger
+ * @param {fscript_t*} fscript 脚本引擎对象。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t fscript_ensure_locals(fscript_t* fscript);
 
 END_C_DECLS
 

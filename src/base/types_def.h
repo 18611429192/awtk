@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  basic types definitions.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -337,10 +337,6 @@ typedef struct _image_manager_t image_manager_t;
 struct _system_info_t;
 typedef struct _system_info_t system_info_t;
 
-#define STR_SCHEMA_FILE "file://"
-#define STR_SCHEMA_HTTP "http://"
-#define STR_SCHEMA_HTTPS "https://"
-
 #if defined(WITH_NANOVG_GL3) || defined(WITH_NANOVG_GL2) || defined(WITH_NANOVG_GLES3) || \
     defined(WITH_NANOVG_GLES2)
 #define WITH_GPU_GL 1
@@ -487,22 +483,32 @@ typedef enum _bitmap_flag_t {
    * @const BITMAP_FLAG_IMMUTABLE
    * 图片内容不会变化。
    */
-  BITMAP_FLAG_IMMUTABLE = 2,
+  BITMAP_FLAG_IMMUTABLE = 1 << 1,
   /**
    * @const BITMAP_FLAG_TEXTURE
    * OpenGL Texture, bitmap的id是有效的texture id。
    */
-  BITMAP_FLAG_TEXTURE = 4,
+  BITMAP_FLAG_TEXTURE = 1 << 2,
   /**
    * @const BITMAP_FLAG_CHANGED
    * 如果是MUTABLE的图片，更新时需要设置此标志，底层可能会做特殊处理，比如更新图片到GPU。
    */
-  BITMAP_FLAG_CHANGED = 8,
+  BITMAP_FLAG_CHANGED = 1 << 3,
   /**
    * @const BITMAP_FLAG_PREMULTI_ALPHA
    * 预乘alpha。
    */
-  BITMAP_FLAG_PREMULTI_ALPHA = 16
+  BITMAP_FLAG_PREMULTI_ALPHA = 1 << 4,
+  /**
+   * @const BITMAP_FLAG_LCD_ORIENTATION
+   * 位图数据已经处理了 lcd 旋转，同时说明 bitmap 的宽高和真实数据的宽高可能不一致
+   */
+  BITMAP_FLAG_LCD_ORIENTATION = 1 << 5,
+  /**
+   * @const BITMAP_FLAG_GPU_FBO_TEXTURE
+   * 该位图为 GPU 的 fbo 数据。
+   */
+  BITMAP_FLAG_GPU_FBO_TEXTURE = 1 << 6,
 } bitmap_flag_t;
 
 #ifndef BITMAP_ALIGN_SIZE

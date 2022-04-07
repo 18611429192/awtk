@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  string
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -587,6 +587,28 @@ ret_t str_reverse(str_t* str);
  * @return {uint32_t} 返回字符串出现的次数。
  */
 uint32_t str_count(str_t* str, const char* substr);
+
+/**
+ * @method str_format
+ * 通过格式设置字符串。
+ * @param {str_t*} str str对象。
+ * @param {uint32_t} size format生成的字符串的最大长度(用于预先分配内存)。
+ * @param {const char*} format 格式。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t str_format(str_t* str, uint32_t size, const char* format, ...);
+
+/**
+ * @method str_append_format
+ * 通过格式追加字符串。
+ * @param {str_t*} str str对象。
+ * @param {uint32_t} size format生成的字符串的最大长度(用于预先分配内存)。
+ * @param {const char*} format 格式。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t str_append_format(str_t* str, uint32_t size, const char* format, ...);
 
 END_C_DECLS
 

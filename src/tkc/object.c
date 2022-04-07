@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  reference count object
  *
- * Copyright (c) 2019 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2019 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -794,10 +794,13 @@ tk_object_t* tk_object_get_child_object(tk_object_t* obj, const char* path,
   const char* p = strchr(path, '.');
   if (p != NULL) {
     value_t v;
-    char subname[TK_NAME_LEN + 1];
-    return_value_if_fail(p - path < TK_NAME_LEN + 1, NULL);
+    uint32_t len = p - path;
+    char subname[TK_OBJECT_PROP_NAME_MAX_LEN] = {0};
+    uint32_t size = tk_min(TK_OBJECT_PROP_NAME_MAX_LEN - 1, len);
+    return_value_if_fail(len < TK_OBJECT_PROP_NAME_MAX_LEN - 1, NULL);
 
-    tk_strncpy_s(subname, sizeof(subname), path, p - path);
+    tk_memcpy(subname, path, size);
+    subname[size] = '\0';
     if (tk_object_get_prop(obj, subname, &v) == RET_OK) {
       if (v.type == VALUE_TYPE_OBJECT) {
         *next_path = p + 1;

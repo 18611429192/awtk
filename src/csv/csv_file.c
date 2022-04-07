@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  csv file
  *
- * Copyright (c) 2020 - 2020  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -388,8 +388,8 @@ static csv_file_t* csv_file_load_input(csv_file_t* csv, tk_istream_t* input) {
     }
 
     r = csv_rows_append(&(csv->rows));
-    return_value_if_fail(r != NULL, NULL);
-    return_value_if_fail(csv_row_init(r, tk_strdup(p), str.size + 1, TRUE) == RET_OK, NULL);
+    goto_error_if_fail(r != NULL);
+    goto_error_if_fail(csv_row_init(r, tk_strdup(p), str.size + 1, TRUE) == RET_OK);
     csv_row_parse(r, sep);
 
     if (csv->filter != NULL) {
@@ -404,6 +404,7 @@ static csv_file_t* csv_file_load_input(csv_file_t* csv, tk_istream_t* input) {
 
     index++;
   }
+  str_reset(&str);
 
   r = csv_file_get_row(csv, 0);
   if (r != NULL) {
@@ -421,8 +422,13 @@ static csv_file_t* csv_file_load_input(csv_file_t* csv, tk_istream_t* input) {
       csv->cols = csv_row_count_cols(r);
     }
   }
+  str_reset(&str);
 
   return csv;
+
+error:
+  str_reset(&str);
+  return NULL;
 }
 
 csv_file_t* csv_file_create_empty(char sep, csv_file_filter_t filter, void* ctx) {

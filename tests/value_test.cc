@@ -246,6 +246,18 @@ TEST(value, int) {
   ASSERT_EQ(value_int(value_set_uint64(&v, 10)), 10);
 }
 
+TEST(value, id) {
+  value_t v;
+  ASSERT_STREQ(value_id(value_set_id(&v, "abc", 3)), "abc");
+  value_reset(&v);
+}
+
+TEST(value, func) {
+  value_t v;
+  ASSERT_STREQ((char*)value_func(value_set_func(&v, (void*)"abc")), "abc");
+  value_reset(&v);
+}
+
 TEST(ValueTest, copy) {
   value_t v;
   value_t other;
@@ -330,4 +342,19 @@ TEST(ValueTest, gradient) {
   gradient = value_gradient(&v);
   ASSERT_EQ(gradient != NULL, true);
   ASSERT_EQ(gradient->size, 2u);
+}
+
+TEST(value, i64_from_str) {
+  value_t v;
+  ASSERT_EQ(&v, value_set_str(&v, "12345678912345"));
+  ASSERT_EQ(value_int64(&v), 12345678912345);
+
+  ASSERT_EQ(&v, value_set_str(&v, "-12345678912345"));
+  ASSERT_EQ(value_int64(&v), -12345678912345);
+}
+
+TEST(value, ui64_from_str) {
+  value_t v;
+  ASSERT_EQ(&v, value_set_str(&v, "12345678912345"));
+  ASSERT_EQ(value_uint64(&v), 12345678912345);
 }

@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  edit
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -114,6 +114,17 @@ static ret_t edit_update_caret(const timer_info_t* timer) {
     text_edit_set_caret_visible(edit->model, FALSE);
     return RET_REMOVE;
   }
+}
+
+static ret_t edit_start_update_caret(edit_t* edit) {
+#define UPDATE_CARET_TIME 600
+  if (edit->timer_id == TK_INVALID_ID) {
+    edit->timer_id = timer_add(edit_update_caret, WIDGET(edit), UPDATE_CARET_TIME);
+  } else {
+    timer_reset(edit->timer_id);
+  }
+  text_edit_set_caret_visible(edit->model, TRUE);
+  return RET_OK;
 }
 
 ret_t edit_on_paint_self(widget_t* widget, canvas_t* c) {
@@ -561,9 +572,7 @@ static ret_t edit_on_blur(widget_t* widget) {
 static ret_t edit_on_focused(widget_t* widget) {
   edit_t* edit = EDIT(widget);
   return_value_if_fail(edit != NULL, RET_BAD_PARAMS);
-  if (edit->timer_id == TK_INVALID_ID) {
-    edit->timer_id = timer_add(edit_update_caret, widget, 600);
-  }
+  edit_start_update_caret(edit);
 
   if (widget->target == NULL) {
     edit_request_input_method(widget);
@@ -781,6 +790,7 @@ ret_t edit_on_event(widget_t* widget, event_t* e) {
       }
       edit_update_status(widget);
       widget_invalidate(widget, NULL);
+      edit_start_update_caret(edit);
       break;
     }
     case EVT_POINTER_DOWN_ABORT: {
@@ -808,6 +818,8 @@ ret_t edit_on_event(widget_t* widget, event_t* e) {
       edit->is_key_inputing = TRUE;
       ret = edit_on_key_down(widget, (key_event_t*)e);
       edit_update_status(widget);
+      widget_invalidate(widget, NULL);
+      edit_start_update_caret(edit);
       break;
     }
     case EVT_KEY_UP: {
@@ -897,6 +909,16 @@ ret_t edit_on_event(widget_t* widget, event_t* e) {
       log_debug("action button:%s\n", edit->action_text);
       break;
     }
+    case EVT_POINTER_LEAVE:
+      edit_update_status(widget);
+      break;
+    case EVT_POINTER_ENTER:
+      if (widget->text.size == 0) {
+        widget_set_state(widget, WIDGET_STATE_EMPTY_OVER);
+      } else {
+        widget_set_state(widget, WIDGET_STATE_OVER);
+      }
+      break;
     default:
       break;
   }
@@ -1307,7 +1329,14 @@ static ret_t edit_set_text(widget_t* widget, const value_t* v) {
   return_value_if_fail(wstr_from_value(&str, v) == RET_OK, RET_BAD_PARAMS);
 
   if (!wstr_equal(&(widget->text), &str)) {
-    uint32_t len = edit->max > 0 ? tk_min(str.size, edit->max) : str.size;
+    uint32_t len = str.size;
+    input_type_t input_type = edit->input_type;
+    if (input_type == INPUT_INT || input_type == INPUT_UINT || input_type == INPUT_FLOAT ||
+        input_type == INPUT_UFLOAT) {
+      len = tk_min(str.size, 64);
+    } else {
+      len = edit->max > 0 ? tk_min(str.size, edit->max) : str.size;
+    }
     wstr_set_with_len(&(widget->text), str.str, len);
 
     text_edit_set_cursor(edit->model, widget->text.size);

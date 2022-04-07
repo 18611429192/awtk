@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  progress_circle
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -270,6 +270,13 @@ ret_t progress_circle_set_counter_clock_wise(widget_t* widget, bool_t counter_cl
 
 /*public for subclass and runtime type check*/
 TK_EXTERN_VTABLE(progress_circle);
+
+/*public for tests*/
+
+/**
+ * @method progress_circle_calc_line_dirty_rect
+ */
+rect_t progress_circle_calc_line_dirty_rect(widget_t* widget, float_t old_value, float_t new_value);
 
 END_C_DECLS
 

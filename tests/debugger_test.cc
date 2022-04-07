@@ -7,10 +7,9 @@
 
 #include "tkc/fscript.h"
 #include "tkc/thread.h"
+#include "tkc/async.h"
 #include "tkc/object_default.h"
 #include "gtest/gtest.h"
-
-#define DEBUGGER_TCP_PORT 8080
 
 static void* fscript_thread_entry(void* args) {
   value_t v;
@@ -62,7 +61,217 @@ static ret_t on_debugger_client_event(void* ctx, event_t* e) {
   return RET_OK;
 }
 
+TEST(Debugger, start_line1) {
+  const char* code =
+      "//hello\n"
+      "function foo(a, b) {\n"
+      " return a + b;\n"
+      "}\n"
+      "print(foo(1, 2))\n"
+      "//code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
+  tk_object_t* obj = object_default_create();
+  fscript_t* fscript = fscript_create(obj, code);
+  ASSERT_EQ(debugger_fscript_get_start_line(fscript), 4);
+  fscript_destroy(fscript);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(Debugger, start_line2) {
+  const char* code =
+      "\n"
+      "function foo(a, b) {\n"
+      " return a + b;\n"
+      "}\n"
+      "print(foo(1, 2))\n"
+      "//code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
+  tk_object_t* obj = object_default_create();
+  fscript_t* fscript = fscript_create(obj, code);
+  ASSERT_EQ(debugger_fscript_get_start_line(fscript), 4);
+  fscript_destroy(fscript);
+
+  TK_OBJECT_UNREF(obj);
+}
+
+TEST(Debugger, launch) {
+  const char* code =
+      "var i = 0\n"
+      "for(i = 0; i < 10; i=i+1) {\n"
+      "  print(i)\n"
+      "}\n"
+      "print(i)\n"
+      "//code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
+  str_t str;
+  str_init(&str, 100);
+  debugger_global_init();
+  async_call_init();
+  debugger_server_tcp_init(DEBUGGER_TCP_PORT);
+  debugger_t* client = debugger_client_tcp_create("localhost", DEBUGGER_TCP_PORT);
+  ASSERT_EQ(client != NULL, TRUE);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_BREAKED, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_LOG, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_ERROR, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
+
+  debugger_server_tcp_start();
+  binary_data_t code_data;
+  code_data.data = (uint8_t*)code;
+  code_data.size = strlen(code) + 1;
+  ASSERT_EQ(debugger_launch(client, DEBUGGER_LANG_FSCRIPT, &code_data), RET_OK);
+  ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
+
+  binary_data_t data = {0, NULL};
+  ASSERT_EQ(debugger_get_callstack(client, &data), RET_OK);
+  ASSERT_STREQ((char*)(data.data), "<root>\n");
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_continue(client), RET_OK);
+  ASSERT_EQ(debugger_clear_break_points(client), RET_OK);
+
+  debugger_client_wait_for_completed(client);
+
+  TK_OBJECT_UNREF(client);
+  debugger_server_tcp_deinit();
+  debugger_global_deinit();
+  ASSERT_STREQ(str.str,
+               "breaked(0)breaked(1)breaked(2)log(2,\"0\")breaked(1)breaked(2)log(2,\"1\")breaked("
+               "1)log(2,\"2\")log(2,\"3\")log(2,\"4\")log(2,\"5\")log(2,\"6\")log(2,\"7\")log(2,"
+               "\"8\")log(2,\"9\")log(4,\"10\")completed()");
+  str_reset(&str);
+  async_call_deinit();
+}
+
 #if 1
+TEST(Debugger, next) {
+  const char* code =
+      "var i = 0\n"
+      "for(i = 0; i < 10; i=i+1) {\n"
+      "  print(i)\n"
+      "}\n"
+      "print(i)\n"
+      "//code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
+  str_t str;
+  str_init(&str, 100);
+  debugger_global_init();
+
+  tk_object_t* obj = object_default_create();
+  fscript_t* fscript = fscript_create(obj, code);
+  tk_thread_t* thread = tk_thread_create(fscript_thread_entry, fscript);
+
+  debugger_server_tcp_init(DEBUGGER_TCP_PORT);
+  debugger_t* client = debugger_client_tcp_create("localhost", DEBUGGER_TCP_PORT);
+  ASSERT_EQ(client != NULL, TRUE);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_BREAKED, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_LOG, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_ERROR, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
+
+  debugger_server_tcp_start();
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
+
+  tk_thread_start(thread);
+  sleep_ms(500);
+
+  binary_data_t data = {0, NULL};
+  ASSERT_EQ(debugger_get_callstack(client, &data), RET_OK);
+  ASSERT_STREQ((char*)(data.data), "<root>\n");
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
+
+  ASSERT_EQ(debugger_continue(client), RET_OK);
+  ASSERT_EQ(debugger_clear_break_points(client), RET_OK);
+
+  debugger_client_wait_for_completed(client);
+  tk_thread_join(thread);
+  tk_thread_destroy(thread);
+
+  TK_OBJECT_UNREF(obj);
+  TK_OBJECT_UNREF(client);
+  debugger_server_tcp_deinit();
+  debugger_global_deinit();
+  ASSERT_STREQ(str.str,
+               "breaked(0)breaked(1)breaked(2)log(2,\"0\")breaked(1)breaked(2)log(2,\"1\")breaked("
+               "1)log(2,\"2\")log(2,\"3\")log(2,\"4\")log(2,\"5\")log(2,\"6\")log(2,\"7\")log(2,"
+               "\"8\")log(2,\"9\")log(4,\"10\")completed()");
+  str_reset(&str);
+}
+
+TEST(Debugger, get_debuggers) {
+  const char* code =
+      "function foo(a, b) {\nreturn a + b;\n}\nc=foo(1, 2)\nprint(c)\n//"
+      "code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
+  str_t str;
+  str_init(&str, 100);
+  debugger_global_init();
+
+  tk_object_t* obj = object_default_create();
+  fscript_t* fscript = fscript_create(obj, code);
+  tk_thread_t* thread = tk_thread_create(fscript_thread_entry, fscript);
+
+  debugger_server_tcp_init(DEBUGGER_TCP_PORT);
+  debugger_t* client = debugger_client_tcp_create("localhost", DEBUGGER_TCP_PORT);
+  ASSERT_EQ(client != NULL, TRUE);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_BREAKED, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_LOG, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_ERROR, on_debugger_client_event, &str);
+  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
+
+  debugger_server_tcp_start();
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_set_break_point(client, 1), RET_OK);
+  ASSERT_EQ(debugger_set_break_point(client, 2), RET_OK);
+  ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
+
+  tk_thread_start(thread);
+  sleep_ms(500);
+
+  binary_data_t data = {0, NULL};
+  ASSERT_EQ(debugger_get_debuggers(client, &data), RET_OK);
+  ASSERT_STREQ((char*)(data.data),
+               "85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\n");
+  ASSERT_EQ(debugger_get_break_points(client, &data), RET_OK);
+  ASSERT_STREQ((char*)(data.data), "1\n2\n3\n");
+
+  ASSERT_EQ(debugger_clear_break_points(client), RET_OK);
+  debugger_client_wait_for_completed(client);
+  tk_thread_join(thread);
+  tk_thread_destroy(thread);
+
+  TK_OBJECT_UNREF(obj);
+  TK_OBJECT_UNREF(client);
+  debugger_server_tcp_deinit();
+  debugger_global_deinit();
+  str_reset(&str);
+}
+
 TEST(Debugger, callstack1) {
   const char* code =
       "function foo(a, b) {\nreturn a + b;\n}\nc=foo(1, 2)\nprint(c)\n//"
@@ -84,7 +293,7 @@ TEST(Debugger, callstack1) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 1), RET_OK);
 
   tk_thread_start(thread);
@@ -116,6 +325,7 @@ TEST(Debugger, callstack1) {
   ASSERT_STREQ(str.str, "breaked(1)log(4,\"3\")completed()");
   str_reset(&str);
 }
+
 TEST(Debugger, callstack2) {
   const char* code =
       "var c = 123\n"
@@ -146,7 +356,7 @@ TEST(Debugger, callstack2) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 2), RET_OK);
 
   tk_thread_start(thread);
@@ -215,7 +425,7 @@ TEST(Debugger, step_in) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 8), RET_OK);
 
   tk_thread_start(thread);
@@ -267,79 +477,11 @@ TEST(Debugger, step_in) {
   TK_OBJECT_UNREF(client);
   debugger_server_tcp_deinit();
   debugger_global_deinit();
-  ASSERT_STREQ(str.str, "breaked(8)breaked(5)breaked(1)breaked(8)log(9,\"600.000000\")completed()");
+  ASSERT_STREQ(
+      str.str,
+      "breaked(8)breaked(6)breaked(2)breaked(6)breaked(8)log(9,\"600.000000\")completed()");
   str_reset(&str);
 }
-
-TEST(Debugger, next) {
-  const char* code =
-      "var i = 0\n"
-      "for(i = 0; i < 10; i=i+1) {\n"
-      "  print(i)\n"
-      "}\n"
-      "print(i)\n"
-      "//code_id(\"85e86311e2d595c65b745d8143b6085efe819c354584742f72aeacd3336a0a5e\")";
-  str_t str;
-  str_init(&str, 100);
-  debugger_global_init();
-
-  tk_object_t* obj = object_default_create();
-  fscript_t* fscript = fscript_create(obj, code);
-  tk_thread_t* thread = tk_thread_create(fscript_thread_entry, fscript);
-
-  debugger_server_tcp_init(DEBUGGER_TCP_PORT);
-  debugger_t* client = debugger_client_tcp_create("localhost", DEBUGGER_TCP_PORT);
-  ASSERT_EQ(client != NULL, TRUE);
-  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_BREAKED, on_debugger_client_event, &str);
-  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_LOG, on_debugger_client_event, &str);
-  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_ERROR, on_debugger_client_event, &str);
-  emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
-
-  debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
-  ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
-
-  tk_thread_start(thread);
-  sleep_ms(500);
-
-  binary_data_t data = {0, NULL};
-  ASSERT_EQ(debugger_get_callstack(client, &data), RET_OK);
-  ASSERT_STREQ((char*)(data.data), "<root>\n");
-
-  ASSERT_EQ(debugger_next(client), RET_OK);
-  sleep_ms(200);
-
-  ASSERT_EQ(debugger_next(client), RET_OK);
-  sleep_ms(200);
-
-  ASSERT_EQ(debugger_next(client), RET_OK);
-  sleep_ms(200);
-
-  ASSERT_EQ(debugger_next(client), RET_OK);
-  sleep_ms(200);
-
-  ASSERT_EQ(debugger_next(client), RET_OK);
-  sleep_ms(200);
-
-  ASSERT_EQ(debugger_continue(client), RET_OK);
-  ASSERT_EQ(debugger_clear_break_points(client), RET_OK);
-
-  debugger_client_wait_for_completed(client);
-  tk_thread_join(thread);
-  tk_thread_destroy(thread);
-
-  TK_OBJECT_UNREF(obj);
-  TK_OBJECT_UNREF(client);
-  debugger_server_tcp_deinit();
-  debugger_global_deinit();
-  ASSERT_STREQ(str.str,
-               "breaked(0)breaked(1)log(2,\"0\")breaked(1)log(2,\"1\")breaked(1)log(2,\"2\")"
-               "breaked(1)log(2,\"3\")breaked(1)log(2,\"4\")log(2,\"5\")log(2,\"6\")log(2,\"7\")"
-               "log(2,\"8\")log(2,\"9\")log(4,\"10\")completed()");
-  str_reset(&str);
-}
-
-#endif
 
 TEST(Debugger, step_over) {
   const char* code =
@@ -366,7 +508,7 @@ TEST(Debugger, step_over) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
 
   tk_thread_start(thread);
@@ -385,6 +527,9 @@ TEST(Debugger, step_over) {
   ASSERT_EQ(debugger_step_over(client), RET_OK);
   sleep_ms(200);
 
+  ASSERT_EQ(debugger_step_over(client), RET_OK);
+  sleep_ms(200);
+
   debugger_client_wait_for_completed(client);
   tk_thread_join(thread);
   tk_thread_destroy(thread);
@@ -393,14 +538,12 @@ TEST(Debugger, step_over) {
   TK_OBJECT_UNREF(client);
   debugger_server_tcp_deinit();
   debugger_global_deinit();
-  ASSERT_STREQ(
-      str.str,
-      "breaked(0)breaked(1)breaked(2)log(2,\"0\")log(2,\"1\")log(2,\"2\")log(2,\"3\")log(2,\"4\")"
-      "log(2,\"5\")log(2,\"6\")log(2,\"7\")log(2,\"8\")log(2,\"9\")log(4,\"10\")completed()");
+  ASSERT_STREQ(str.str,
+               "breaked(0)breaked(1)breaked(2)log(2,\"0\")log(2,\"1\")log(2,\"2\")log(2,\"3\")log("
+               "2,\"4\")log(2,\"5\")log(2,\"6\")log(2,\"7\")log(2,\"8\")log(2,\"9\")breaked(4)log("
+               "4,\"10\")completed()");
   str_reset(&str);
 }
-
-#if 1
 
 TEST(Debugger, event1) {
   const char* code =
@@ -423,7 +566,7 @@ TEST(Debugger, event1) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
 
   tk_thread_start(thread);
@@ -469,7 +612,7 @@ TEST(Debugger, event2) {
   emitter_on(EMITTER(client), DEBUGGER_RESP_MSG_COMPLETED, on_debugger_client_event, &str);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 2), RET_OK);
 
   tk_thread_start(thread);
@@ -510,7 +653,7 @@ TEST(Debugger, basic) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
 
   tk_thread_start(thread);
@@ -546,7 +689,7 @@ TEST(Debugger, basic1) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 0), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 1), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 2), RET_OK);
@@ -555,6 +698,7 @@ TEST(Debugger, basic1) {
   sleep_ms(500);
 
   ASSERT_EQ(debugger_next(client), RET_OK);
+  sleep_ms(200);
   ASSERT_EQ(debugger_next(client), RET_OK);
   ASSERT_EQ(debugger_remove_break_point(client, 2), RET_OK);
   ASSERT_EQ(debugger_clear_break_points(client), RET_OK);
@@ -585,7 +729,7 @@ TEST(Debugger, local) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
 
   tk_thread_start(thread);
@@ -625,7 +769,7 @@ TEST(Debugger, self) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
 
   tk_thread_start(thread);
@@ -665,7 +809,7 @@ TEST(Debugger, global) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
 
   tk_thread_start(thread);
@@ -705,7 +849,7 @@ TEST(Debugger, callstack) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
 
   tk_thread_start(thread);
@@ -743,7 +887,7 @@ TEST(Debugger, code) {
   ASSERT_EQ(client != NULL, TRUE);
 
   debugger_server_tcp_start();
-  ASSERT_EQ(debugger_init(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
+  ASSERT_EQ(debugger_attach(client, DEBUGGER_LANG_FSCRIPT, fscript->code_id), RET_OK);
   ASSERT_EQ(debugger_set_break_point(client, 3), RET_OK);
 
   tk_thread_start(thread);

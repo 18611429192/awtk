@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  ext functions for fscript
  *
- * Copyright (c) 2020 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2020 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  */
 
@@ -28,6 +28,7 @@
 #include "fscript_ext/fscript_array.h"
 #include "fscript_ext/fscript_endian.h"
 #include "fscript_ext/fscript_object.h"
+#include "fscript_ext/fscript_module.h"
 #include "fscript_ext/fscript_rbuffer.h"
 #include "fscript_ext/fscript_wbuffer.h"
 #include "fscript_ext/fscript_app_conf.h"
@@ -452,6 +453,10 @@ ret_t fscript_ext_init(void) {
 #ifdef FSCRIPT_WITH_DATE_TIME
   fscript_date_time_register();
 #endif /*FSCRIPT_WITH_DATE_TIME*/
+
+#ifdef FSCRIPT_WITH_MODULE
+  fscript_module_register();
+#endif /*FSCRIPT_WITH_MODULE*/
 
   return RET_OK;
 }

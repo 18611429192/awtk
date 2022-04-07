@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  basic class of all widget
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -710,6 +710,28 @@ int32_t widget_count_children(widget_t* widget);
  * @return {widget_t*} 子控件。
  */
 widget_t* widget_get_child(widget_t* widget, int32_t index);
+
+/**
+ * @method widget_find_parent_by_name
+ * 通过名称查找父控件。
+ * @annotation ["scriptable"]
+ * @param {widget_t*} widget 控件对象。
+ * @param {const char*} name 名称。
+ *
+ * @return {widget_t*} 父控件。
+ */
+widget_t* widget_find_parent_by_name(widget_t* widget, const char* name);
+
+/**
+ * @method widget_find_parent_by_type
+ * 通过类型查找父控件。
+ * @annotation ["scriptable"]
+ * @param {widget_t*} widget 控件对象。
+ * @param {const char*} type 类型。
+ *
+ * @return {widget_t*} 父控件。
+ */
+widget_t* widget_find_parent_by_type(widget_t* widget, const char* type);
 
 /**
  * @method widget_get_focused_widget
@@ -2456,6 +2478,25 @@ ret_t widget_fill_fg_rect(widget_t* widget, canvas_t* c, const rect_t* r,
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t widget_prepare_text_style(widget_t* widget, canvas_t* c);
+
+/**
+ * @method widget_prepare_text_style_ex
+ * 从widget的style中取出字体名称、大小和颜色数据，设置到canvas中。
+ * 备注：如果在风格中找不到才会使用默认的设置。
+ *
+ * @param {widget_t*} widget 控件对象。
+ * @param {canvas_t*} c 画布对象。
+ * @param {color_t} default_trans 默认文字颜色。
+ * @param {const char*} default_font 默认字库名字。
+ * @param {uint16_t} default_font_size 默认字体大小。
+ * @param {align_h_t} default_align_h 默认文字水平方向对齐。
+ * @param {align_v_t} default_align_v 默认文字垂直方向对齐。
+ *
+ * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
+ */
+ret_t widget_prepare_text_style_ex(widget_t* widget, canvas_t* c, color_t default_trans,
+                                   const char* default_font, uint16_t default_font_size,
+                                   align_h_t default_align_h, align_v_t default_align_v);
 
 /**
  * @method widget_measure_text

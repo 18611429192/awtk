@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  string
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -647,9 +647,14 @@ ret_t str_append_json_str(str_t* str, const char* json_str) {
   if (p != NULL) {
     while (*p) {
       if (*p == '\"') {
-        return_value_if_fail(str_append_char(str, '\\') == RET_OK, RET_OOM);
+        return_value_if_fail(str_append(str, "\\\"") == RET_OK, RET_OOM);
+      } else if (*p == '\n') {
+        return_value_if_fail(str_append(str, "\\n") == RET_OK, RET_OOM);
+      } else if (*p == '\r') {
+        return_value_if_fail(str_append(str, "\\r") == RET_OK, RET_OOM);
+      } else {
+        return_value_if_fail(str_append_char(str, *p) == RET_OK, RET_OOM);
       }
-      return_value_if_fail(str_append_char(str, *p) == RET_OK, RET_OOM);
       p++;
     }
   }
@@ -773,4 +778,35 @@ uint32_t str_count(str_t* str, const char* substr) {
   return_value_if_fail(str != NULL && substr != NULL, 0);
 
   return str_count_sub_str(str, substr);
+}
+
+ret_t str_format(str_t* str, uint32_t size, const char* format, ...) {
+  va_list va;
+  int32_t ret = 0;
+  return_value_if_fail(str != NULL && format != NULL, RET_BAD_PARAMS);
+  return_value_if_fail(str_extend(str, size + 1) == RET_OK, RET_OOM);
+
+  va_start(va, format);
+  ret = tk_vsnprintf(str->str, size, format, va);
+  va_end(va);
+  return_value_if_fail(ret >= 0, RET_BAD_PARAMS);
+  str->size = ret;
+
+  return RET_OK;
+}
+
+ret_t str_append_format(str_t* str, uint32_t size, const char* format, ...) {
+  va_list va;
+  int32_t ret = 0;
+  return_value_if_fail(str != NULL && format != NULL, RET_BAD_PARAMS);
+  return_value_if_fail(str_extend(str, str->size + size + 1) == RET_OK, RET_OOM);
+
+  va_start(va, format);
+  ret = tk_vsnprintf(str->str + str->size, size, format, va);
+  va_end(va);
+
+  return_value_if_fail(ret >= 0, RET_BAD_PARAMS);
+  str->size += ret;
+
+  return RET_OK;
 }

@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  generic value type
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -177,6 +177,8 @@ int64_t value_int64(const value_t* v) {
     return v->value.i64;
   } else if (v->type == VALUE_TYPE_UINT64) {
     return v->value.u64;
+  } else if (v->type == VALUE_TYPE_STRING) {
+    return tk_atol(v->value.str);
   } else {
     return (int64_t)value_int(v);
   }
@@ -197,6 +199,8 @@ uint64_t value_uint64(const value_t* v) {
     return v->value.u64;
   } else if (v->type == VALUE_TYPE_INT64) {
     return v->value.i64;
+  } else if (v->type == VALUE_TYPE_STRING) {
+    return tk_atoul(v->value.str);
   } else {
     return (uint64_t)value_int(v);
   }
@@ -642,6 +646,14 @@ ret_t value_reset(value_t* v) {
         TK_OBJECT_UNREF(obj);
         break;
       }
+      case VALUE_TYPE_ID: {
+        TKMEM_FREE(v->value.id.id);
+        break;
+      }
+      case VALUE_TYPE_FUNC: {
+        TKMEM_FREE(v->value.func.func);
+        break;
+      }
       default:
         break;
     }
@@ -796,6 +808,9 @@ const char* value_str_ex(const value_t* v, char* buff, uint32_t size) {
     tk_snprintf(buff, size, "%" PRIu64, value_uint64(v));
   } else if (v->type == VALUE_TYPE_INT64) {
     tk_snprintf(buff, size, "%" PRId64, value_int64(v));
+  } else if (v->type == VALUE_TYPE_ID) {
+    assert(v->value.id.id != NULL);
+    return v->value.id.id;
   } else if (v->type == VALUE_TYPE_BINARY) {
     binary_data_t* bin = value_binary_data(v);
     if (bin != NULL) {
@@ -803,6 +818,10 @@ const char* value_str_ex(const value_t* v, char* buff, uint32_t size) {
     } else {
       tk_snprintf(buff, size, "(null)");
     }
+  } else if (v->type == VALUE_TYPE_FUNC) {
+    return "func";
+  } else if (v->type == VALUE_TYPE_FUNC_DEF) {
+    return "func_def";
   } else if (v->type == VALUE_TYPE_POINTER) {
     tk_snprintf(buff, size, "%p", value_pointer(v));
   } else if (v->type == VALUE_TYPE_OBJECT) {
@@ -870,4 +889,50 @@ uint32_t value_type_size(value_type_t type) {
       return sizeof(void*);
     }
   }
+}
+
+const char* value_id(const value_t* v) {
+  return_value_if_fail(v != NULL && v->type == VALUE_TYPE_ID, NULL);
+
+  return v->value.id.id;
+}
+
+value_t* value_set_id(value_t* v, const char* value, uint32_t len) {
+  return_value_if_fail(v != NULL && value != NULL, NULL);
+  v->value.id.id = tk_strndup(value, len);
+  v->value.id.index = -1;
+  v->value.id.suboffset = 0;
+  value_init(v, VALUE_TYPE_ID);
+  v->free_handle = TRUE;
+
+  return v;
+}
+
+void* value_func(const value_t* v) {
+  return_value_if_fail(v != NULL && v->type == VALUE_TYPE_FUNC, NULL);
+
+  return v->value.func.func;
+}
+
+value_t* value_set_func(value_t* v, void* value) {
+  return_value_if_fail(v != NULL && value != NULL, NULL);
+
+  v->value.func.func = value;
+  v->value.func.memo = 0;
+
+  return value_init(v, VALUE_TYPE_FUNC);
+}
+
+void* value_func_def(const value_t* v) {
+  return_value_if_fail(v != NULL && v->type == VALUE_TYPE_FUNC_DEF, NULL);
+
+  return v->value.ptr;
+}
+
+value_t* value_set_func_def(value_t* v, void* value) {
+  return_value_if_fail(v != NULL && value != NULL, NULL);
+
+  v->value.ptr = value;
+
+  return value_init(v, VALUE_TYPE_FUNC_DEF);
 }

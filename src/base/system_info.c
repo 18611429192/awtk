@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  system info
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -439,3 +439,5 @@ bool_t tk_is_swap_size_by_orientation(lcd_orientation_t old_orientation,
   }
   return FALSE;
 }
+
+#include "lcd_orientation_helper.inc"

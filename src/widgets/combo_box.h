@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  combo_box
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -381,6 +381,17 @@ combo_box_option_t* combo_box_get_option(widget_t* widget, uint32_t index);
  * @return {int32_t} 返回值。
  */
 int32_t combo_box_get_value(widget_t* widget);
+
+/**
+ * @method combo_box_has_option_text
+ * 检查选项中是否存在指定的文本。
+ * @annotation ["scriptable"]
+ * @param {widget_t*} widget combo_box对象。
+ * @param {const char*} text option text
+ *
+ * @return {bool_t} 返回TRUE表示存在，否则表示不存在。
+ */
+bool_t combo_box_has_option_text(widget_t* widget, const char* text);
 
 /**
  * @method combo_box_get_text

@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  mutex
  *
- * Copyright (c) 2018 - 2018  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -118,8 +118,7 @@ ret_t tk_thread_start(tk_thread_t* thread) {
 ret_t tk_thread_join(tk_thread_t* thread) {
   return_value_if_fail(thread != NULL, RET_BAD_PARAMS);
 
-  if (!aw_task_valid(thread->id) || aw_task_join(thread->id, &thread->status) == AW_OK) {
-    thread->id = AW_TASK_ID_INVALID;
+  if (!aw_task_valid(thread->id) || aw_task_terminate(thread->id) == AW_OK) {
     thread->running = FALSE;
     return RET_OK;
   } else {
@@ -134,10 +133,11 @@ void* tk_thread_get_args(tk_thread_t* thread) {
 }
 
 ret_t tk_thread_destroy(tk_thread_t* thread) {
-  return_value_if_fail(thread != NULL && thread->id != AW_TASK_ID_INVALID, RET_BAD_PARAMS);
+  return_value_if_fail(
+      thread != NULL && thread->id != AW_TASK_ID_INVALID && thread->running == FALSE,
+      RET_BAD_PARAMS);
 
-  return_value_if_fail(aw_task_terminate(thread->id) == AW_OK, RET_FAIL);
-
+  thread->id = AW_TASK_ID_INVALID;
   memset(thread, 0x00, sizeof(tk_thread_t));
   TKMEM_FREE(thread);
 

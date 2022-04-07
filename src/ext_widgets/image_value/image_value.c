@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  image_value
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -156,6 +156,10 @@ static ret_t image_value_on_paint_self(widget_t* widget, canvas_t* c) {
       strcpy(sub_name, IMAGE_VALUE_MAP_DOT);
     } else if (str[i] == '/') {
       strcpy(sub_name, IMAGE_VALUE_MAP_SLASH);
+    } else if (str[i] == '+') {
+      strcpy(sub_name, IMAGE_VALUE_MAP_PLUS);
+    } else if (str[i] == '-') {
+      strcpy(sub_name, IMAGE_VALUE_MAP_MINUS);
     } else {
       sub_name[0] = str[i];
       sub_name[1] = '\0';

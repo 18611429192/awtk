@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  vector graphics canvas interface.
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -407,6 +407,8 @@ struct _vgcanvas_t {
   rect_t dirty_rect;
   const vgcanvas_vtable_t* vt;
   assets_manager_t* assets_manager;
+  /*确保begin_frame/end_frame配对使用*/
+  uint32_t began_frame;
 };
 
 /**

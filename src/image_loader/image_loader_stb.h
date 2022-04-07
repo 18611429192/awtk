@@ -3,7 +3,7 @@
  * Author: AWTK Develop Team
  * Brief:  stb image loader
  *
- * Copyright (c) 2018 - 2021  Guangzhou ZHIYUAN Electronics Co.,Ltd.
+ * Copyright (c) 2018 - 2022  Guangzhou ZHIYUAN Electronics Co.,Ltd.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -61,11 +61,13 @@ image_loader_t* image_loader_stb(void);
  * @param {bool_t} require_bgra require_bgra
  * @param {bool_t} enable_bgr565 enable_bgr565
  * @param {bool_t} enable_rgb565 enable_rgb565
+ * @param {lcd_orientation_t} o 旋转方向
  *
  * @return {ret_t} 返回RET_OK表示成功，否则表示失败。
  */
 ret_t stb_load_image(int32_t subtype, const uint8_t* buff, uint32_t buff_size, bitmap_t* image,
-                     bool_t require_bgra, bool_t enable_bgr565, bool_t enable_rgb565);
+                     bool_t require_bgra, bool_t enable_bgr565, bool_t enable_rgb565,
+                     lcd_orientation_t o);
 
 END_C_DECLS
 
